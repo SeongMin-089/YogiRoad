@@ -1,20 +1,9 @@
+﻿import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
-
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AuthNavigator from './src/navigation/AuthNavigator';
+import { colors } from './src/constants/colors';
+const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, primary: colors.primary, background: colors.background, card: colors.background, text: colors.text, border: colors.border } };
 export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
+  return <SafeAreaProvider><NavigationContainer theme={theme}><StatusBar style="dark" /><AuthNavigator /></NavigationContainer></SafeAreaProvider>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
