@@ -13,7 +13,7 @@ export default function LoginScreen({ navigation }: AuthScreenProps<'Login'>) {
   }>
     <FormInput label="이메일" placeholder="이메일을 입력해 주세요" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
     <FormInput label="비밀번호" placeholder="비밀번호를 입력해 주세요" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="current-password" />
-    <PrimaryButton title="로그인" onPress={() => Alert.alert('로그인', '로그인 기능은 준비 중입니다.')} />
+    <PrimaryButton title="로그인" onPress={() => navigation.replace('Main')} />
     <Pressable accessibilityRole="button" style={styles.forgot} onPress={() => Alert.alert('비밀번호 찾기', '비밀번호 찾기 기능은 준비 중입니다.')}><Text style={authStyles.muted}>비밀번호를 잊으셨나요?</Text></Pressable>
     <View style={styles.divider}><View style={styles.line} /><Text style={authStyles.muted}>또는</Text><View style={styles.line} /></View>
     <Pressable accessibilityRole="button" accessibilityLabel="Google로 계속하기" onPress={() => Alert.alert('Google 로그인', 'Google 로그인 기능은 준비 중입니다.')} style={({ pressed }) => [styles.google, { opacity: pressed ? 0.7 : 1 }]}><Text style={styles.googleIcon}>G</Text><Text style={styles.googleText}>Google로 계속하기</Text></Pressable>
