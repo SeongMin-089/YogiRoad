@@ -1,9 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { colors } from '../constants/colors';
 
-type Props = { latitude?: number; longitude?: number };
+export type KakaoMapStore = {
+  bizesId: string;
+  bizesNm: string;
+  indsLclsNm?: string;
+  indsMclsNm?: string;
+  indsSclsNm?: string;
+  rdnmAdr?: string;
+  lnoAdr?: string;
+  lat: number;
+  lon: number;
+};
+type Props = { latitude?: number; longitude?: number; stores?: KakaoMapStore[]; onStorePress?: (storeId: string) => void };
+const EMPTY_STORES: KakaoMapStore[] = [];
+
+function serializeStores(stores: KakaoMapStore[]) {
+  return JSON.stringify(stores).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
 
 // 진접읍 경복대로 424: 남양주캠퍼스(경복대로 425) 인근 도로명주소 좌표.
 // https://findby.co.kr/details/12051-413603197003-st-652bb41f8c641f9e38b0a65d
@@ -12,7 +28,7 @@ const DEFAULT_CENTER = { latitude: 37.7336614, longitude: 127.2121189 };
 // This is the inline HTML's origin, not a server the phone needs to connect to.
 const BASE_URL = 'https://localhost/';
 
-function createMapHtml(apiKey: string, latitude: number, longitude: number) {
+function createMapHtml(apiKey: string, latitude: number, longitude: number, stores: KakaoMapStore[]) {
   const sdkUrl = JSON.stringify(
     `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(apiKey)}&autoload=false`,
   ).replace(/</g, '\\u003c');
@@ -32,6 +48,7 @@ function createMapHtml(apiKey: string, latitude: number, longitude: number) {
   <script>
     (function () {
       var failed = false;
+      var stores = ${serializeStores(stores)};
       function send(type, code) {
         if (window.ReactNativeWebView) {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, code: code }));
@@ -60,6 +77,41 @@ function createMapHtml(apiKey: string, latitude: number, longitude: number) {
                 draggable: true,
                 zoomable: true
               });
+              var markers = [];
+              window.updateStoreMarkers = function (nextStores) {
+                markers.forEach(function (entry) {
+                  kakao.maps.event.removeListener(entry.marker, 'click', entry.onClick);
+                  entry.marker.setMap(null);
+                });
+                markers = [];
+                if (!Array.isArray(nextStores)) return;
+                var seen = Object.create(null);
+                nextStores.forEach(function (store) {
+                  if (markers.length >= 20 || !store || typeof store.bizesId !== 'string' || !store.bizesId || seen[store.bizesId]) return;
+                  if (typeof store.lat !== 'number' || typeof store.lon !== 'number' ||
+                      !Number.isFinite(store.lat) || !Number.isFinite(store.lon) ||
+                      Math.abs(store.lat) > 90 || Math.abs(store.lon) > 180) return;
+                  var marker;
+                  try {
+                    marker = new kakao.maps.Marker({
+                      map: map,
+                      position: new kakao.maps.LatLng(store.lat, store.lon)
+                    });
+                    var onClick = function () {
+                      if (window.ReactNativeWebView) {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'STORE_SELECTED', storeId: store.bizesId }));
+                      }
+                    };
+                    kakao.maps.event.addListener(marker, 'click', onClick);
+                    markers.push({ marker: marker, onClick: onClick });
+                    seen[store.bizesId] = true;
+                  } catch (_) {
+                    // One malformed store must not stop the map or other markers.
+                    if (marker) marker.setMap(null);
+                  }
+                });
+              };
+              window.updateStoreMarkers(stores);
               // A missing tile must not turn a successfully initialized map into a timeout error.
               send('MAP_READY');
               window.addEventListener('resize', function () { map.relayout(); });
@@ -79,11 +131,22 @@ const errorCodes = new Set([
   'MAP_INIT_FAILED', 'SDK_INIT_FAILED',
 ]);
 
-function MapWebView({ apiKey, latitude, longitude }: Required<Props> & { apiKey: string }) {
+function MapWebView({ apiKey, latitude, longitude, stores, onStorePress }: {
+  apiKey: string; latitude: number; longitude: number; stores: KakaoMapStore[]; onStorePress?: Props['onStorePress'];
+}) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const webView = useRef<WebView>(null);
+  const initialStores = useRef(stores);
   const source = useMemo(() => ({
-    html: createMapHtml(apiKey, latitude, longitude), baseUrl: BASE_URL,
+    html: createMapHtml(apiKey, latitude, longitude, initialStores.current), baseUrl: BASE_URL,
   }), [apiKey, latitude, longitude]);
+
+  // API completion updates only markers, preserving the user's pan/zoom and loaded SDK.
+  useEffect(() => {
+    if (status === 'ready') {
+      webView.current?.injectJavaScript(`window.updateStoreMarkers && window.updateStoreMarkers(${serializeStores(stores)}); true;`);
+    }
+  }, [stores, status]);
 
   const fail = useCallback((code: string) => {
     // Never log the native event, URL, HTML, or SDK exception (they may include the key).
@@ -103,6 +166,9 @@ function MapWebView({ apiKey, latitude, longitude }: Required<Props> & { apiKey:
       if (!message || typeof message !== 'object' || !('type' in message)) return;
       if (message.type === 'MAP_READY') {
         setStatus(current => current === 'loading' ? 'ready' : current);
+      } else if (message.type === 'STORE_SELECTED' && 'storeId' in message && typeof message.storeId === 'string') {
+        const storeId = message.storeId;
+        if (stores.some(store => store.bizesId === storeId)) onStorePress?.(storeId);
       } else if (message.type === 'MAP_ERROR') {
         const code = 'code' in message && typeof message.code === 'string' && errorCodes.has(message.code)
           ? message.code : 'SDK_ERROR';
@@ -113,6 +179,7 @@ function MapWebView({ apiKey, latitude, longitude }: Required<Props> & { apiKey:
 
   return <View style={styles.container}>
     {status !== 'error' ? <WebView
+      ref={webView}
       source={source}
       originWhitelist={['*']}
       javaScriptEnabled
@@ -138,7 +205,7 @@ function MapWebView({ apiKey, latitude, longitude }: Required<Props> & { apiKey:
   </View>;
 }
 
-export default function KakaoMap({ latitude = DEFAULT_CENTER.latitude, longitude = DEFAULT_CENTER.longitude }: Props) {
+export default function KakaoMap({ latitude = DEFAULT_CENTER.latitude, longitude = DEFAULT_CENTER.longitude, stores = EMPTY_STORES, onStorePress }: Props) {
   const apiKey = process.env.EXPO_PUBLIC_KAKAO_JS_KEY?.trim();
   let message: string | undefined;
   if (!apiKey) message = '지도 설정 오류: EXPO_PUBLIC_KAKAO_JS_KEY를 설정해 주세요.';
@@ -147,8 +214,8 @@ export default function KakaoMap({ latitude = DEFAULT_CENTER.latitude, longitude
   } else if (Platform.OS === 'web') message = '카카오 지도는 iPhone 또는 Android의 Expo Go에서 확인해 주세요.';
 
   if (message || !apiKey) return <View style={[styles.container, styles.notice]}><Text style={styles.description}>{message}</Text></View>;
-  // A changed center starts a fresh map session; search and marker integration are intentionally absent.
-  return <MapWebView key={`${latitude},${longitude}`} apiKey={apiKey} latitude={latitude} longitude={longitude} />;
+  // A changed center starts a fresh map session; store changes update markers only.
+  return <MapWebView key={`${latitude},${longitude}`} apiKey={apiKey} latitude={latitude} longitude={longitude} stores={stores} onStorePress={onStorePress} />;
 }
 
 const styles = StyleSheet.create({
