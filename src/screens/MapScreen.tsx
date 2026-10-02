@@ -7,10 +7,7 @@ import KakaoMap, { type KakaoMapStore } from '../components/KakaoMap';
 import PublicStoreDetailsCard from '../components/PublicStoreDetailsCard';
 import { colors } from '../constants/colors';
 import { fetchRestaurantsInRadius, PublicDataApiError, type PublicDataStore } from '../services/publicDataApi';
-import StoreCard from '../components/StoreCard';
-import StoreDetailsModal from '../components/StoreDetailsModal';
-import { stores as mockStores } from '../data/mockData';
-import type { SalesStatus, Store } from '../types/sales';
+import type { SalesStatus } from '../types/sales';
 import {
   createSalesTarget,
   getSalesTarget,
@@ -20,7 +17,7 @@ import {
   type SalesTarget,
 } from '../services/salesTargetApi';
 
-const filters: ('전체' | SalesStatus)[] = ['전체', '미방문', '상담중', '재방문', '계약완료'];
+const filters: ('전체' | SalesStatus)[] = ['전체', '미방문', '상담중', '재방문', '계약완료', '거절'];
 
 function trimmed(value: string | undefined): string {
   return value?.trim() ?? '';
@@ -50,7 +47,6 @@ function toCreateSalesTargetRequest(store: PublicDataStore): CreateSalesTargetRe
 export default function MapScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'전체' | SalesStatus>('전체');
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [stores, setStores] = useState<PublicDataStore[]>([]);
   const [loadingStores, setLoadingStores] = useState(true);
   const [storeError, setStoreError] = useState<string | null>(null);
@@ -98,10 +94,31 @@ export default function MapScreen() {
     return () => { active = false; };
   }, []);
 
+  const salesTargetStatuses = useMemo(
+    () => new Map(salesTargets.map(target => [target.storeId, target.status])),
+    [salesTargets],
+  );
+
+  const visibleStores = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
+    return stores.filter(store => {
+      const storeId = trimmed(store.bizesId);
+      const matchesStatus = filter === '전체' || salesTargetStatuses.get(storeId) === filter;
+      const matchesQuery = !normalizedQuery || [
+        store.bizesNm,
+        store.rdnmAdr,
+        store.lnoAdr,
+        store.indsMclsNm,
+        store.indsSclsNm,
+      ].some(value => trimmed(value).toLocaleLowerCase('ko-KR').includes(normalizedQuery));
+      return matchesStatus && matchesQuery;
+    });
+  }, [filter, query, salesTargetStatuses, stores]);
+
   const mapStores = useMemo(() => {
     const result: KakaoMapStore[] = [];
     const seen = new Set<string>();
-    for (const store of stores) {
+    for (const store of visibleStores) {
       const { lat, lon, bizesId } = store;
       if (typeof lat !== 'number' || !Number.isFinite(lat) || Math.abs(lat) > 90 ||
           typeof lon !== 'number' || !Number.isFinite(lon) || Math.abs(lon) > 180 ||
@@ -111,7 +128,7 @@ export default function MapScreen() {
       if (result.length === 20) break;
     }
     return result;
-  }, [stores]);
+  }, [visibleStores]);
 
   const salesTargetIds = useMemo(
     () => new Set(salesTargets.map(target => target.storeId)),
@@ -156,8 +173,6 @@ export default function MapScreen() {
     }
   }
 
-  const matches = mockStores.filter(store => (filter === '전체' || store.status === filter) && `${store.name} ${store.address}`.includes(query.trim()));
-  const preview = matches[0];
   return <View style={{ flex: 1, backgroundColor: colors.background }}>
     <MainScreenLayout title="지도">
     <View style={ui.section}><SearchField value={query} onChangeText={setQuery} placeholder="매장명 또는 지역을 검색해 보세요" /><FilterChips options={filters} value={filter} onChange={setFilter} /></View>
@@ -171,10 +186,6 @@ export default function MapScreen() {
     {salesTargetError ? <Text style={ui.muted} accessibilityLiveRegion="polite">
       {salesTargetError} 지도와 음식점 마커는 계속 사용할 수 있습니다.
     </Text> : null}
-    <View style={ui.section}><Text style={ui.muted}>예시 매장 · 검색 결과 {matches.length}곳</Text>
-      {preview ? <StoreCard {...preview} address={preview.distance} meta="선택한 매장" onPress={() => setSelectedStore(preview)} /> : <View style={ui.empty}><Text style={ui.name}>검색 결과가 없어요</Text><Text style={ui.muted}>다른 매장명이나 지역, 상태를 선택해 주세요.</Text></View>}
-    </View>
-    <StoreDetailsModal store={selectedStore} onClose={() => setSelectedStore(null)} />
     </MainScreenLayout>
     {selectedPublicStore ? <PublicStoreDetailsCard
       key={selectedPublicStore.bizesId}

@@ -5,6 +5,6 @@ export type Store = {
   category: string;
   address: string;
   status: SalesStatus;
-  distance: string;
+  distance?: string;
   meta?: string;
 };

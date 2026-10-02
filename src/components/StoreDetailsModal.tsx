@@ -11,8 +11,13 @@ export default function StoreDetailsModal({ store, onClose }: { store: Store | n
     <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.content}>
       {store ? <View style={ui.stack}>
         <Text accessibilityRole="header" style={styles.title}>매장 정보</Text>
-        <View style={[ui.card, ui.section]}><Text style={ui.name}>{store.name}</Text><Text style={ui.body}>{store.category} · {store.address}</Text><StatusBadge status={store.status} /><Text style={ui.muted}>{store.meta}</Text><Text style={ui.muted}>거리 {store.distance}</Text></View>
-        <Text style={ui.muted}>UI 미리보기용 예시 매장 정보입니다.</Text>
+        <View style={[ui.card, ui.section]}>
+          <Text style={ui.name}>{store.name}</Text>
+          <Text style={ui.body}>{[store.category, store.address].filter(Boolean).join(' · ')}</Text>
+          <StatusBadge status={store.status} />
+          {store.meta ? <Text style={ui.muted}>{store.meta}</Text> : null}
+          {store.distance ? <Text style={ui.muted}>거리 {store.distance}</Text> : null}
+        </View>
         <PrimaryButton title="닫기" variant="secondary" onPress={onClose} />
       </View> : null}
     </ScrollView></SafeAreaView>
