@@ -8,6 +8,8 @@ import StatusBadge from './StatusBadge';
 type Props = {
   store: PublicDataStore;
   registered: boolean;
+  registering?: boolean;
+  loadingRegistrationStatus?: boolean;
   onRegister: () => void;
   onClose: () => void;
 };
@@ -16,7 +18,14 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export default function PublicStoreDetailsCard({ store, registered, onRegister, onClose }: Props) {
+export default function PublicStoreDetailsCard({
+  store,
+  registered,
+  registering = false,
+  loadingRegistrationStatus = false,
+  onRegister,
+  onClose,
+}: Props) {
   const { height } = useWindowDimensions();
   const category = text(store.indsMclsNm) || text(store.indsSclsNm);
   const subcategory = text(store.indsSclsNm);
@@ -54,8 +63,18 @@ export default function PublicStoreDetailsCard({ store, registered, onRegister, 
       </View>)}
     </ScrollView>
     <View style={styles.footer}>
-      <PrimaryButton title={registered ? '등록 완료 · 미방문' : '영업 대상 등록'}
-        variant={registered ? 'secondary' : 'primary'} disabled={registered || !text(store.bizesId)} onPress={onRegister} />
+      <PrimaryButton
+        title={registered
+          ? '등록 완료 · 미방문'
+          : registering
+            ? '등록 중...'
+            : loadingRegistrationStatus
+              ? '등록 상태 확인 중...'
+              : '영업 대상 등록'}
+        variant={registered ? 'secondary' : 'primary'}
+        disabled={registered || registering || loadingRegistrationStatus || !text(store.bizesId)}
+        onPress={onRegister}
+      />
     </View>
   </View>;
 }

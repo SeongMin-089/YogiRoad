@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import MainScreenLayout, { ui } from '../components/MainScreenLayout';
 import SearchField from '../components/SearchField';
 import FilterChips from '../components/FilterChips';
@@ -11,8 +11,42 @@ import StoreCard from '../components/StoreCard';
 import StoreDetailsModal from '../components/StoreDetailsModal';
 import { stores as mockStores } from '../data/mockData';
 import type { SalesStatus, Store } from '../types/sales';
+import {
+  createSalesTarget,
+  getSalesTarget,
+  getSalesTargets,
+  SalesTargetApiError,
+  type CreateSalesTargetRequest,
+  type SalesTarget,
+} from '../services/salesTargetApi';
 
 const filters: ('전체' | SalesStatus)[] = ['전체', '미방문', '상담중', '재방문', '계약완료'];
+
+function trimmed(value: string | undefined): string {
+  return value?.trim() ?? '';
+}
+
+function toCreateSalesTargetRequest(store: PublicDataStore): CreateSalesTargetRequest | null {
+  const storeId = trimmed(store.bizesId);
+  const storeName = trimmed(store.bizesNm);
+  const latitude = store.lat;
+  const longitude = store.lon;
+
+  if (!storeId || !storeName || typeof latitude !== 'number' || !Number.isFinite(latitude)
+      || typeof longitude !== 'number' || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    storeId,
+    storeName,
+    category: trimmed(store.indsMclsNm) || trimmed(store.indsSclsNm),
+    address: trimmed(store.rdnmAdr) || trimmed(store.lnoAdr),
+    latitude,
+    longitude,
+  };
+}
+
 export default function MapScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'전체' | SalesStatus>('전체');
@@ -21,8 +55,12 @@ export default function MapScreen() {
   const [loadingStores, setLoadingStores] = useState(true);
   const [storeError, setStoreError] = useState<string | null>(null);
   const [selectedPublicStore, setSelectedPublicStore] = useState<PublicDataStore | null>(null);
-  const [registeredStoreIds, setRegisteredStoreIds] = useState<Set<string>>(() => new Set());
+  const [salesTargets, setSalesTargets] = useState<SalesTarget[]>([]);
+  const [loadingSalesTargets, setLoadingSalesTargets] = useState(true);
+  const [salesTargetError, setSalesTargetError] = useState<string | null>(null);
+  const [registeringStoreId, setRegisteringStoreId] = useState<string | null>(null);
   const request = useRef<Promise<PublicDataStore[]> | null>(null);
+  const salesTargetRequest = useRef<Promise<SalesTarget[]> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -36,6 +74,26 @@ export default function MapScreen() {
         ? '주변 음식점 데이터가 없습니다.' : '주변 음식점을 불러오지 못했습니다. 지도는 계속 사용할 수 있습니다.');
     }).finally(() => {
       if (active) setLoadingStores(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    // Reuse the promise if development StrictMode re-runs this effect.
+    salesTargetRequest.current ??= getSalesTargets();
+    void salesTargetRequest.current.then(result => {
+      if (active) {
+        setSalesTargets(result);
+        setSalesTargetError(null);
+      }
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setSalesTargetError(error instanceof SalesTargetApiError
+        ? error.message
+        : '영업 대상 등록 상태를 불러오지 못했습니다. 지도는 계속 사용할 수 있습니다.');
+    }).finally(() => {
+      if (active) setLoadingSalesTargets(false);
     });
     return () => { active = false; };
   }, []);
@@ -55,6 +113,49 @@ export default function MapScreen() {
     return result;
   }, [stores]);
 
+  const salesTargetIds = useMemo(
+    () => new Set(salesTargets.map(target => target.storeId)),
+    [salesTargets],
+  );
+
+  const selectedPublicStoreId = trimmed(selectedPublicStore?.bizesId);
+  const selectedPublicStoreRegistered = !!selectedPublicStoreId && salesTargetIds.has(selectedPublicStoreId);
+
+  async function handleRegister(): Promise<void> {
+    if (!selectedPublicStore || registeringStoreId) return;
+    const requestBody = toCreateSalesTargetRequest(selectedPublicStore);
+    if (!requestBody) {
+      Alert.alert('등록할 수 없음', '이 매장은 필수 정보가 부족해 영업 대상으로 등록할 수 없습니다.');
+      return;
+    }
+    if (salesTargetIds.has(requestBody.storeId)) return;
+
+    setRegisteringStoreId(requestBody.storeId);
+    try {
+      const created = await createSalesTarget(requestBody);
+      setSalesTargets(previous => previous.some(target => target.storeId === created.storeId)
+        ? previous
+        : [created, ...previous]);
+      setSalesTargetError(null);
+    } catch (error) {
+      if (error instanceof SalesTargetApiError && error.status === 409) {
+        const existing = await getSalesTarget(requestBody.storeId).catch(() => null);
+        if (existing) {
+          setSalesTargets(previous => previous.some(target => target.storeId === existing.storeId)
+            ? previous
+            : [existing, ...previous]);
+          setSalesTargetError(null);
+        }
+      }
+      Alert.alert(
+        '영업 대상 등록 실패',
+        error instanceof SalesTargetApiError ? error.message : '영업 대상을 등록하지 못했습니다.',
+      );
+    } finally {
+      setRegisteringStoreId(null);
+    }
+  }
+
   const matches = mockStores.filter(store => (filter === '전체' || store.status === filter) && `${store.name} ${store.address}`.includes(query.trim()));
   const preview = matches[0];
   return <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -67,6 +168,9 @@ export default function MapScreen() {
     <Text style={ui.muted} accessibilityLiveRegion="polite">{loadingStores
       ? '주변 음식점을 불러오는 중...'
       : storeError ?? (mapStores.length ? `주변 음식점 ${mapStores.length}곳 · 마커를 눌러 정보를 확인하세요.` : '표시할 수 있는 음식점 좌표가 없습니다.')}</Text>
+    {salesTargetError ? <Text style={ui.muted} accessibilityLiveRegion="polite">
+      {salesTargetError} 지도와 음식점 마커는 계속 사용할 수 있습니다.
+    </Text> : null}
     <View style={ui.section}><Text style={ui.muted}>예시 매장 · 검색 결과 {matches.length}곳</Text>
       {preview ? <StoreCard {...preview} address={preview.distance} meta="선택한 매장" onPress={() => setSelectedStore(preview)} /> : <View style={ui.empty}><Text style={ui.name}>검색 결과가 없어요</Text><Text style={ui.muted}>다른 매장명이나 지역, 상태를 선택해 주세요.</Text></View>}
     </View>
@@ -75,13 +179,11 @@ export default function MapScreen() {
     {selectedPublicStore ? <PublicStoreDetailsCard
       key={selectedPublicStore.bizesId}
       store={selectedPublicStore}
-      registered={!!selectedPublicStore.bizesId && registeredStoreIds.has(selectedPublicStore.bizesId)}
+      registered={selectedPublicStoreRegistered}
+      registering={registeringStoreId === selectedPublicStoreId}
+      loadingRegistrationStatus={loadingSalesTargets}
       onClose={() => setSelectedPublicStore(null)}
-      onRegister={() => {
-        const id = selectedPublicStore.bizesId;
-        if (!id?.trim()) return;
-        setRegisteredStoreIds(previous => previous.has(id) ? previous : new Set(previous).add(id));
-      }}
+      onRegister={() => { void handleRegister(); }}
     /> : null}
   </View>;
 }
