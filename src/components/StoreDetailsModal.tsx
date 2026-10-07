@@ -20,6 +20,7 @@ import {
 import { SALES_STATUSES, type SalesStatus } from '../types/sales';
 import { ui } from './MainScreenLayout';
 import PrimaryButton from './PrimaryButton';
+import SalesActivitySection from './SalesActivitySection';
 import StatusBadge, { statusColors } from './StatusBadge';
 
 type Props = {
@@ -106,6 +107,7 @@ export default function StoreDetailsModal({ target, onClose, onChanged, onDelete
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
     >
       {target ? <View style={ui.stack}>
         <Text accessibilityRole="header" style={styles.title}>영업 대상 상세</Text>
@@ -142,7 +144,7 @@ export default function StoreDetailsModal({ target, onClose, onChanged, onDelete
         </View>
 
         <View style={ui.section}>
-          <Text style={ui.name}>상담 메모</Text>
+          <Text style={ui.name}>현재 메모</Text>
           <TextInput
             accessibilityLabel="상담 메모"
             value={memo}
@@ -163,6 +165,9 @@ export default function StoreDetailsModal({ target, onClose, onChanged, onDelete
           disabled={busy}
           onPress={() => { void handleSave(); }}
         />
+
+        <SalesActivitySection storeId={target.storeId} disabled={busy} />
+
         <PrimaryButton title="닫기" variant="secondary" disabled={busy} onPress={onClose} />
         <Pressable
           accessibilityRole="button"

@@ -29,9 +29,11 @@ public class SalesTargetService {
 	private static final String COLLECTION_NAME = "salesTargets";
 
 	private final Firestore firestore;
+	private final SalesActivityService salesActivityService;
 
-	public SalesTargetService(Firestore firestore) {
+	public SalesTargetService(Firestore firestore, SalesActivityService salesActivityService) {
 		this.firestore = firestore;
+		this.salesActivityService = salesActivityService;
 	}
 
 	public SalesTarget register(SalesTargetCreateRequest request) {
@@ -104,6 +106,7 @@ public class SalesTargetService {
 	public void delete(String storeId) {
 		DocumentReference document = firestore.collection(COLLECTION_NAME).document(storeId);
 		requireExisting(document, storeId, "영업 대상 삭제 전 조회 중 오류가 발생했습니다.");
+		salesActivityService.deleteAllByStoreId(storeId);
 		await(document.delete(), "영업 대상 삭제 중 오류가 발생했습니다.");
 	}
 
