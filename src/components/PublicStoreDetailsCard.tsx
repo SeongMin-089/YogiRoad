@@ -2,12 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { colors } from '../constants/colors';
 import type { PublicDataStore } from '../services/publicDataApi';
+import type { SalesStatus } from '../types/sales';
 import PrimaryButton from './PrimaryButton';
 import StatusBadge from './StatusBadge';
 
 type Props = {
   store: PublicDataStore;
-  registered: boolean;
+  status?: SalesStatus;
   registering?: boolean;
   loadingRegistrationStatus?: boolean;
   onRegister: () => void;
@@ -20,7 +21,7 @@ function text(value: unknown): string {
 
 export default function PublicStoreDetailsCard({
   store,
-  registered,
+  status,
   registering = false,
   loadingRegistrationStatus = false,
   onRegister,
@@ -47,7 +48,7 @@ export default function PublicStoreDetailsCard({
     <View style={styles.top}>
       <View style={styles.badges}>
         {category ? <View style={styles.category}><Text style={styles.categoryText}>{category}</Text></View> : null}
-        {registered ? <StatusBadge status="미방문" /> : null}
+        {status ? <StatusBadge status={status} /> : null}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="영업 대상 상세 닫기" onPress={onClose}
         style={({ pressed }) => [styles.close, { opacity: pressed ? 0.5 : 1 }]}>
@@ -64,15 +65,15 @@ export default function PublicStoreDetailsCard({
     </ScrollView>
     <View style={styles.footer}>
       <PrimaryButton
-        title={registered
-          ? '등록 완료 · 미방문'
+        title={status
+          ? `등록 완료 · ${status}`
           : registering
             ? '등록 중...'
             : loadingRegistrationStatus
               ? '등록 상태 확인 중...'
               : '영업 대상 등록'}
-        variant={registered ? 'secondary' : 'primary'}
-        disabled={registered || registering || loadingRegistrationStatus || !text(store.bizesId)}
+        variant={status ? 'secondary' : 'primary'}
+        disabled={status !== undefined || registering || loadingRegistrationStatus || !text(store.bizesId)}
         onPress={onRegister}
       />
     </View>

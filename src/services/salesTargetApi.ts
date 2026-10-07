@@ -21,6 +21,11 @@ export type CreateSalesTargetRequest = {
   longitude: number;
 };
 
+export type UpdateSalesTargetRequest = {
+  status: SalesStatus;
+  memo: string;
+};
+
 type ErrorKind = 'CONFIG' | 'NETWORK' | 'HTTP' | 'INVALID_RESPONSE';
 
 export class SalesTargetApiError extends Error {
@@ -63,7 +68,7 @@ async function getServerErrorMessage(response: Response): Promise<string> {
   return `서버 요청에 실패했습니다. (HTTP ${response.status})`;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function sendRequest(path: string, init?: RequestInit): Promise<Response> {
   let response: Response;
   try {
     response = await fetch(getApiUrl(path), init);
@@ -82,6 +87,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       response.status,
     );
   }
+
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await sendRequest(path, init);
 
   try {
     return await response.json() as T;
@@ -104,4 +115,21 @@ export function getSalesTargets(): Promise<SalesTarget[]> {
 
 export function getSalesTarget(storeId: string): Promise<SalesTarget> {
   return request(`/api/sales-targets/${encodeURIComponent(storeId)}`);
+}
+
+export function updateSalesTarget(
+  storeId: string,
+  requestBody: UpdateSalesTargetRequest,
+): Promise<SalesTarget> {
+  return request(`/api/sales-targets/${encodeURIComponent(storeId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+}
+
+export async function deleteSalesTarget(storeId: string): Promise<void> {
+  await sendRequest(`/api/sales-targets/${encodeURIComponent(storeId)}`, {
+    method: 'DELETE',
+  });
 }

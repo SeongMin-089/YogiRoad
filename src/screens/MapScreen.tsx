@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Text, View } from 'react-native';
 import MainScreenLayout, { ui } from '../components/MainScreenLayout';
 import SearchField from '../components/SearchField';
@@ -7,7 +8,7 @@ import KakaoMap, { type KakaoMapStore } from '../components/KakaoMap';
 import PublicStoreDetailsCard from '../components/PublicStoreDetailsCard';
 import { colors } from '../constants/colors';
 import { fetchRestaurantsInRadius, PublicDataApiError, type PublicDataStore } from '../services/publicDataApi';
-import type { SalesStatus } from '../types/sales';
+import { SALES_STATUSES, type SalesStatus } from '../types/sales';
 import {
   createSalesTarget,
   getSalesTarget,
@@ -17,7 +18,7 @@ import {
   type SalesTarget,
 } from '../services/salesTargetApi';
 
-const filters: ('전체' | SalesStatus)[] = ['전체', '미방문', '상담중', '재방문', '계약완료', '거절'];
+const filters: readonly ('전체' | SalesStatus)[] = ['전체', ...SALES_STATUSES];
 
 function trimmed(value: string | undefined): string {
   return value?.trim() ?? '';
@@ -56,7 +57,6 @@ export default function MapScreen() {
   const [salesTargetError, setSalesTargetError] = useState<string | null>(null);
   const [registeringStoreId, setRegisteringStoreId] = useState<string | null>(null);
   const request = useRef<Promise<PublicDataStore[]> | null>(null);
-  const salesTargetRequest = useRef<Promise<SalesTarget[]> | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -74,11 +74,10 @@ export default function MapScreen() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
-    // Reuse the promise if development StrictMode re-runs this effect.
-    salesTargetRequest.current ??= getSalesTargets();
-    void salesTargetRequest.current.then(result => {
+    setLoadingSalesTargets(true);
+    void getSalesTargets().then(result => {
       if (active) {
         setSalesTargets(result);
         setSalesTargetError(null);
@@ -92,7 +91,7 @@ export default function MapScreen() {
       if (active) setLoadingSalesTargets(false);
     });
     return () => { active = false; };
-  }, []);
+  }, []));
 
   const salesTargetStatuses = useMemo(
     () => new Map(salesTargets.map(target => [target.storeId, target.status])),
@@ -103,7 +102,8 @@ export default function MapScreen() {
     const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
     return stores.filter(store => {
       const storeId = trimmed(store.bizesId);
-      const matchesStatus = filter === '전체' || salesTargetStatuses.get(storeId) === filter;
+      const registeredStatus = storeId ? salesTargetStatuses.get(storeId) : undefined;
+      const matchesStatus = filter === '전체' || registeredStatus === filter;
       const matchesQuery = !normalizedQuery || [
         store.bizesNm,
         store.rdnmAdr,
@@ -130,13 +130,10 @@ export default function MapScreen() {
     return result;
   }, [visibleStores]);
 
-  const salesTargetIds = useMemo(
-    () => new Set(salesTargets.map(target => target.storeId)),
-    [salesTargets],
-  );
-
   const selectedPublicStoreId = trimmed(selectedPublicStore?.bizesId);
-  const selectedPublicStoreRegistered = !!selectedPublicStoreId && salesTargetIds.has(selectedPublicStoreId);
+  const selectedPublicStoreStatus = selectedPublicStoreId
+    ? salesTargetStatuses.get(selectedPublicStoreId)
+    : undefined;
 
   async function handleRegister(): Promise<void> {
     if (!selectedPublicStore || registeringStoreId) return;
@@ -145,7 +142,7 @@ export default function MapScreen() {
       Alert.alert('등록할 수 없음', '이 매장은 필수 정보가 부족해 영업 대상으로 등록할 수 없습니다.');
       return;
     }
-    if (salesTargetIds.has(requestBody.storeId)) return;
+    if (salesTargetStatuses.has(requestBody.storeId)) return;
 
     setRegisteringStoreId(requestBody.storeId);
     try {
@@ -162,6 +159,7 @@ export default function MapScreen() {
             ? previous
             : [existing, ...previous]);
           setSalesTargetError(null);
+          return;
         }
       }
       Alert.alert(
@@ -190,7 +188,7 @@ export default function MapScreen() {
     {selectedPublicStore ? <PublicStoreDetailsCard
       key={selectedPublicStore.bizesId}
       store={selectedPublicStore}
-      registered={selectedPublicStoreRegistered}
+      status={selectedPublicStoreStatus}
       registering={registeringStoreId === selectedPublicStoreId}
       loadingRegistrationStatus={loadingSalesTargets}
       onClose={() => setSelectedPublicStore(null)}

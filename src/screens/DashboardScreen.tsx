@@ -5,9 +5,7 @@ import StatCard from '../components/StatCard';
 import { statusColors } from '../components/StatusBadge';
 import { colors } from '../constants/colors';
 import { useSalesTargets } from '../hooks/useSalesTargets';
-import type { SalesStatus } from '../types/sales';
-
-const statuses: readonly SalesStatus[] = ['미방문', '상담중', '재방문', '계약완료', '거절'];
+import { SALES_STATUSES, type SalesStatus } from '../types/sales';
 
 function registeredDate(value: string): string | null {
   const date = new Date(value);
@@ -17,7 +15,7 @@ function registeredDate(value: string): string | null {
 
 export default function DashboardScreen() {
   const { salesTargets, loading, error } = useSalesTargets();
-  const counts = Object.fromEntries(statuses.map(status => [
+  const counts = Object.fromEntries(SALES_STATUSES.map(status => [
     status,
     salesTargets.filter(target => target.status === status).length,
   ])) as Record<SalesStatus, number>;
@@ -28,7 +26,9 @@ export default function DashboardScreen() {
     { label: '계약 완료', value: String(counts.계약완료) },
     { label: '재방문', value: String(counts.재방문) },
   ];
-  const contracts = salesTargets.filter(target => target.status === '계약완료');
+  const contracts = salesTargets
+    .filter(target => target.status === '계약완료')
+    .slice(0, 5);
 
   return <MainScreenLayout title="대시보드">
     {loading ? <View style={ui.empty}><Text style={ui.name}>영업 현황을 불러오는 중...</Text></View> : null}
@@ -40,7 +40,7 @@ export default function DashboardScreen() {
       <View style={ui.section}><Text style={ui.muted}>현재 등록된 영업 대상 기준</Text></View>
       <View style={ui.grid}>{stats.map(stat => <StatCard key={stat.label} {...stat} />)}</View>
       <View style={ui.section}><SectionHeader title="영업 진행 현황" /><View style={[ui.card, styles.bars]}>
-        {statuses.map(status => {
+        {SALES_STATUSES.map(status => {
           const count = counts[status];
           const percentage = total > 0 ? count / total * 100 : 0;
           return <View key={status} style={styles.barGroup}>
@@ -57,7 +57,7 @@ export default function DashboardScreen() {
           const date = registeredDate(contract.registeredAt);
           return <View key={contract.storeId} style={[ui.card, styles.contract]}>
             <Text style={ui.name}>{contract.storeName}</Text>
-            <Text style={ui.muted}>계약 완료{date ? ` · 등록일 ${date}` : ''}</Text>
+            <Text style={ui.muted}>계약 완료{date ? ` · 영업 대상 등록일 ${date}` : ''}</Text>
           </View>;
         })}
         {!contracts.length ? <View style={ui.empty}>

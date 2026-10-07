@@ -10,6 +10,7 @@ import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.yogiroad.backend.dto.SalesTargetCreateRequest;
+import com.yogiroad.backend.dto.SalesTargetUpdateRequest;
 import com.yogiroad.backend.exception.DuplicateSalesTargetException;
 import com.yogiroad.backend.exception.FirestoreOperationException;
 import com.yogiroad.backend.exception.SalesTargetNotFoundException;
@@ -75,8 +76,9 @@ public class SalesTargetService {
 	}
 
 	public SalesTarget findByStoreId(String storeId) {
+		DocumentReference reference = firestore.collection(COLLECTION_NAME).document(storeId);
 		DocumentSnapshot document = await(
-				firestore.collection(COLLECTION_NAME).document(storeId).get(),
+				reference.get(),
 				"영업 대상 조회 중 오류가 발생했습니다."
 		);
 
@@ -85,6 +87,31 @@ public class SalesTargetService {
 		}
 
 		return fromDocument(document);
+	}
+
+	public SalesTarget update(String storeId, SalesTargetUpdateRequest request) {
+		DocumentReference document = firestore.collection(COLLECTION_NAME).document(storeId);
+		requireExisting(document, storeId, "영업 대상 수정 전 조회 중 오류가 발생했습니다.");
+
+		Map<String, Object> updates = new LinkedHashMap<>();
+		updates.put("status", request.status().name());
+		updates.put("memo", request.memo());
+		await(document.update(updates), "영업 대상 수정 중 오류가 발생했습니다.");
+
+		return findByStoreId(storeId);
+	}
+
+	public void delete(String storeId) {
+		DocumentReference document = firestore.collection(COLLECTION_NAME).document(storeId);
+		requireExisting(document, storeId, "영업 대상 삭제 전 조회 중 오류가 발생했습니다.");
+		await(document.delete(), "영업 대상 삭제 중 오류가 발생했습니다.");
+	}
+
+	private void requireExisting(DocumentReference document, String storeId, String errorMessage) {
+		DocumentSnapshot snapshot = await(document.get(), errorMessage);
+		if (!snapshot.exists()) {
+			throw new SalesTargetNotFoundException(storeId);
+		}
 	}
 
 	private Map<String, Object> toDocument(SalesTarget salesTarget) {

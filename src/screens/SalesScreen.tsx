@@ -6,17 +6,24 @@ import FilterChips from '../components/FilterChips';
 import StoreCard from '../components/StoreCard';
 import StoreDetailsModal from '../components/StoreDetailsModal';
 import { useSalesTargets } from '../hooks/useSalesTargets';
-import type { SalesStatus, Store } from '../types/sales';
+import type { SalesTarget } from '../services/salesTargetApi';
+import { SALES_STATUSES, type SalesStatus } from '../types/sales';
 
 type Filter = '전체' | SalesStatus;
-const statuses: readonly SalesStatus[] = ['미방문', '상담중', '재방문', '계약완료', '거절'];
-const filters: readonly Filter[] = ['전체', ...statuses];
+const filters: readonly Filter[] = ['전체', ...SALES_STATUSES];
 
 export default function SalesScreen() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('전체');
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
-  const { salesTargets, loading, error } = useSalesTargets();
+  const [selectedTarget, setSelectedTarget] = useState<SalesTarget | null>(null);
+  const {
+    salesTargets,
+    loading,
+    error,
+    reload,
+    updateLocalSalesTarget,
+    removeLocalSalesTarget,
+  } = useSalesTargets();
 
   const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
   const filtered = useMemo(() => salesTargets.filter(target => {
@@ -32,15 +39,6 @@ export default function SalesScreen() {
       : salesTargets.filter(target => target.status === status).length,
   ])) as Record<Filter, number>, [salesTargets]);
 
-  const stores = filtered.map<Store>(target => ({
-    id: target.storeId,
-    name: target.storeName,
-    category: target.category,
-    address: target.address,
-    status: target.status,
-    meta: target.memo.trim() || undefined,
-  }));
-
   return <MainScreenLayout title="영업관리">
     <View style={ui.section}>
       <SearchField value={query} onChangeText={setQuery} placeholder="매장명, 주소 또는 업종을 검색해 주세요" />
@@ -54,17 +52,38 @@ export default function SalesScreen() {
       </View> : null}
       {!loading && !error ? <>
         <Text style={ui.muted}>영업 대상 {filtered.length}곳</Text>
-        {stores.map(store => <StoreCard key={store.id} {...store} onPress={() => setSelectedStore(store)} />)}
+        {filtered.map(target => <StoreCard
+          key={target.storeId}
+          name={target.storeName}
+          category={target.category}
+          address={target.address}
+          status={target.status}
+          meta={target.memo.trim() || undefined}
+          onPress={() => setSelectedTarget(target)}
+        />)}
         {!salesTargets.length ? <View style={ui.empty}>
           <Text style={ui.name}>등록된 영업 대상이 없습니다.</Text>
           <Text style={ui.muted}>지도에서 음식점을 영업 대상으로 등록해 주세요.</Text>
         </View> : null}
-        {salesTargets.length > 0 && !stores.length ? <View style={ui.empty}>
+        {salesTargets.length > 0 && !filtered.length ? <View style={ui.empty}>
           <Text style={ui.name}>검색 결과가 없습니다.</Text>
           <Text style={ui.muted}>검색어나 상태 필터를 변경해 주세요.</Text>
         </View> : null}
       </> : null}
     </View>
-    <StoreDetailsModal store={selectedStore} onClose={() => setSelectedStore(null)} />
+    <StoreDetailsModal
+      target={selectedTarget}
+      onClose={() => setSelectedTarget(null)}
+      onChanged={updated => {
+        setSelectedTarget(updated);
+        updateLocalSalesTarget(updated);
+        void reload();
+      }}
+      onDeleted={storeId => {
+        setSelectedTarget(null);
+        removeLocalSalesTarget(storeId);
+        void reload();
+      }}
+    />
   </MainScreenLayout>;
 }
