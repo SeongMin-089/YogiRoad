@@ -3,6 +3,7 @@ package com.yogiroad.backend.model;
 import java.time.Instant;
 
 public record SalesTarget(
+		String userId,
 		String storeId,
 		String storeName,
 		String category,

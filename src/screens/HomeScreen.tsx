@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '../auth/AuthContext';
 import MainScreenLayout, { ui } from '../components/MainScreenLayout';
 import SalesPrioritySection from '../components/SalesPrioritySection';
 import SectionHeader from '../components/SectionHeader';
@@ -15,6 +16,7 @@ import type { MainScreenProps } from '../types/navigation';
 import type { SalesStatus } from '../types/sales';
 
 export default function HomeScreen({ navigation }: MainScreenProps<'Home'>) {
+  const { user } = useAuth();
   const [selectedTarget, setSelectedTarget] = useState<SalesTarget | null>(null);
   const {
     salesTargets,
@@ -36,7 +38,7 @@ export default function HomeScreen({ navigation }: MainScreenProps<'Home'>) {
   return <MainScreenLayout>
     <View style={ui.section}>
       <View style={ui.row}><View style={ui.grow}>
-        <Text accessibilityRole="header" style={styles.greeting}>안녕하세요.</Text>
+        <Text accessibilityRole="header" style={styles.greeting}>{user?.displayName?.trim() ? `${user.displayName.trim()}님, 안녕하세요.` : '안녕하세요.'}</Text>
         <Text style={styles.subtitle}>오늘도 좋은 영업 되세요.</Text>
       </View>
         <Pressable accessibilityRole="button" accessibilityLabel="마이 화면 열기" onPress={() => navigation.navigate('MyPage')} style={styles.avatar}>

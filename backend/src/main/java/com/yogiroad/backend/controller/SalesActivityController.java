@@ -1,5 +1,6 @@
 package com.yogiroad.backend.controller;
 
+import com.yogiroad.backend.auth.FirebaseAuthFilter;
 import com.yogiroad.backend.dto.SalesActivityCreateRequest;
 import com.yogiroad.backend.model.SalesActivity;
 import com.yogiroad.backend.service.SalesActivityService;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,20 +30,28 @@ public class SalesActivityController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public SalesActivity create(
+			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
 			@PathVariable String storeId,
 			@Valid @RequestBody SalesActivityCreateRequest request
 	) {
-		return salesActivityService.create(storeId, request);
+		return salesActivityService.create(userId, storeId, request);
 	}
 
 	@GetMapping
-	public List<SalesActivity> findAll(@PathVariable String storeId) {
-		return salesActivityService.findAll(storeId);
+	public List<SalesActivity> findAll(
+			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@PathVariable String storeId
+	) {
+		return salesActivityService.findAll(userId, storeId);
 	}
 
 	@DeleteMapping("/{activityId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void delete(@PathVariable String storeId, @PathVariable String activityId) {
-		salesActivityService.delete(storeId, activityId);
+	public void delete(
+			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@PathVariable String storeId,
+			@PathVariable String activityId
+	) {
+		salesActivityService.delete(userId, storeId, activityId);
 	}
 }

@@ -1,4 +1,6 @@
-export type ApiErrorKind = 'CONFIG' | 'NETWORK' | 'HTTP' | 'INVALID_RESPONSE';
+import { auth } from '../config/firebase';
+
+export type ApiErrorKind = 'AUTH' | 'CONFIG' | 'NETWORK' | 'HTTP' | 'INVALID_RESPONSE';
 
 export class ApiError extends Error {
   constructor(
@@ -41,9 +43,24 @@ async function getServerErrorMessage(response: Response): Promise<string> {
 }
 
 async function sendRequest(path: string, init?: RequestInit): Promise<Response> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new ApiError('AUTH', '로그인이 필요합니다.', 401);
+  }
+
+  let token: string;
+  try {
+    token = await currentUser.getIdToken();
+  } catch {
+    throw new ApiError('AUTH', '로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.', 401);
+  }
+
+  const headers = new Headers(init?.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+
   let response: Response;
   try {
-    response = await fetch(getApiUrl(path), init);
+    response = await fetch(getApiUrl(path), { ...init, headers });
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError(
@@ -53,6 +70,9 @@ async function sendRequest(path: string, init?: RequestInit): Promise<Response> 
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new ApiError('AUTH', '로그인이 만료되었습니다. 다시 로그인해 주세요.', 401);
+    }
     throw new ApiError('HTTP', await getServerErrorMessage(response), response.status);
   }
 

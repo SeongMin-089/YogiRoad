@@ -5,7 +5,6 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
@@ -15,6 +14,7 @@ import com.yogiroad.backend.exception.SalesActivityNotFoundException;
 import com.yogiroad.backend.exception.SalesTargetNotFoundException;
 import com.yogiroad.backend.model.SalesActivity;
 import com.yogiroad.backend.model.SalesActivityType;
+import com.yogiroad.backend.util.FirestoreDocumentIds;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -36,12 +36,13 @@ public class SalesActivityService {
 		this.firestore = firestore;
 	}
 
-	public SalesActivity create(String storeId, SalesActivityCreateRequest request) {
-		requireSalesTarget(storeId);
+	public SalesActivity create(String userId, String storeId, SalesActivityCreateRequest request) {
+		requireSalesTarget(userId, storeId);
 
 		DocumentReference document = firestore.collection(ACTIVITIES_COLLECTION).document();
 		SalesActivity activity = new SalesActivity(
 				document.getId(),
+				userId,
 				storeId,
 				request.type(),
 				request.content().trim(),
@@ -53,64 +54,53 @@ public class SalesActivityService {
 		return activity;
 	}
 
-	public List<SalesActivity> findAll(String storeId) {
-		// A single-field query plus in-memory sorting avoids requiring a composite Firestore index.
-		QuerySnapshot snapshot = await(
-				firestore.collection(ACTIVITIES_COLLECTION)
-						.whereEqualTo("storeId", storeId)
-						.get(),
-				"영업 활동 목록 조회 중 오류가 발생했습니다."
-		);
-
-		return snapshot.getDocuments().stream()
-				.map(this::fromDocument)
+	public List<SalesActivity> findAll(String userId, String storeId) {
+		requireSalesTarget(userId, storeId);
+		return findAll(userId).stream()
+				.filter(activity -> activity.storeId().equals(storeId))
 				.sorted(Comparator.comparing(SalesActivity::createdAt).reversed())
 				.toList();
 	}
 
-	public List<SalesActivity> findAll() {
+	public List<SalesActivity> findAll(String userId) {
 		QuerySnapshot snapshot = await(
-				firestore.collection(ACTIVITIES_COLLECTION).get(),
-				"영업 활동 전체 조회 중 오류가 발생했습니다."
+				firestore.collection(ACTIVITIES_COLLECTION).whereEqualTo("userId", userId).get(),
+				"영업 활동 목록 조회 중 오류가 발생했습니다."
 		);
-		return snapshot.getDocuments().stream()
-				.map(this::fromDocument)
+		return snapshot.getDocuments().stream().map(this::fromDocument).toList();
+	}
+
+	public List<SalesActivity> findUpcoming(String userId, Instant from, Instant to, int limit) {
+		return findAll(userId).stream()
+				.filter(activity -> activity.nextActionAt() != null)
+				.filter(activity -> !activity.nextActionAt().isBefore(from))
+				.filter(activity -> !activity.nextActionAt().isAfter(to))
+				.sorted(Comparator.comparing(SalesActivity::nextActionAt))
+				.limit(limit)
 				.toList();
 	}
 
-	public List<SalesActivity> findUpcoming(Instant from, Instant to, int limit) {
-		QuerySnapshot snapshot = await(
-				firestore.collection(ACTIVITIES_COLLECTION)
-						.whereGreaterThanOrEqualTo("nextActionAt", toTimestamp(from))
-						.whereLessThanOrEqualTo("nextActionAt", toTimestamp(to))
-						.orderBy("nextActionAt", Query.Direction.ASCENDING)
-						.limit(limit)
-						.get(),
-				"다가오는 영업 일정 조회 중 오류가 발생했습니다."
-		);
-		return snapshot.getDocuments().stream()
-				.map(this::fromDocument)
-				.toList();
-	}
-
-	public void delete(String storeId, String activityId) {
+	public void delete(String userId, String storeId, String activityId) {
+		requireSalesTarget(userId, storeId);
 		DocumentReference document = firestore.collection(ACTIVITIES_COLLECTION).document(activityId);
 		DocumentSnapshot snapshot = await(document.get(), "영업 활동 삭제 전 조회 중 오류가 발생했습니다.");
-		if (!snapshot.exists() || !storeId.equals(snapshot.getString("storeId"))) {
+		if (!snapshot.exists()
+				|| !userId.equals(snapshot.getString("userId"))
+				|| !storeId.equals(snapshot.getString("storeId"))) {
 			throw new SalesActivityNotFoundException(activityId);
 		}
 
 		await(document.delete(), "영업 활동 삭제 중 오류가 발생했습니다.");
 	}
 
-	public void deleteAllByStoreId(String storeId) {
+	public void deleteAllByStoreId(String userId, String storeId) {
 		QuerySnapshot snapshot = await(
-				firestore.collection(ACTIVITIES_COLLECTION)
-						.whereEqualTo("storeId", storeId)
-						.get(),
+				firestore.collection(ACTIVITIES_COLLECTION).whereEqualTo("userId", userId).get(),
 				"영업 대상의 활동 기록 조회 중 오류가 발생했습니다."
 		);
-		List<QueryDocumentSnapshot> documents = snapshot.getDocuments();
+		List<QueryDocumentSnapshot> documents = snapshot.getDocuments().stream()
+				.filter(document -> storeId.equals(document.getString("storeId")))
+				.toList();
 
 		for (int start = 0; start < documents.size(); start += FIRESTORE_BATCH_LIMIT) {
 			int end = Math.min(start + FIRESTORE_BATCH_LIMIT, documents.size());
@@ -120,12 +110,14 @@ public class SalesActivityService {
 		}
 	}
 
-	private void requireSalesTarget(String storeId) {
+	private void requireSalesTarget(String userId, String storeId) {
 		DocumentSnapshot snapshot = await(
-				firestore.collection(SALES_TARGETS_COLLECTION).document(storeId).get(),
+				firestore.collection(SALES_TARGETS_COLLECTION)
+						.document(FirestoreDocumentIds.salesTarget(userId, storeId))
+						.get(),
 				"영업 대상 확인 중 오류가 발생했습니다."
 		);
-		if (!snapshot.exists()) {
+		if (!snapshot.exists() || !userId.equals(snapshot.getString("userId"))) {
 			throw new SalesTargetNotFoundException(storeId);
 		}
 	}
@@ -133,6 +125,7 @@ public class SalesActivityService {
 	private Map<String, Object> toDocument(SalesActivity activity) {
 		Map<String, Object> data = new LinkedHashMap<>();
 		data.put("id", activity.id());
+		data.put("userId", activity.userId());
 		data.put("storeId", activity.storeId());
 		data.put("type", activity.type().name());
 		data.put("content", activity.content());
@@ -148,11 +141,12 @@ public class SalesActivityService {
 
 	private SalesActivity fromDocument(DocumentSnapshot document) {
 		try {
+			String userId = document.getString("userId");
 			String storeId = document.getString("storeId");
 			String type = document.getString("type");
 			String content = document.getString("content");
 			Timestamp createdAt = document.getTimestamp("createdAt");
-			if (storeId == null || type == null || content == null || createdAt == null) {
+			if (userId == null || storeId == null || type == null || content == null || createdAt == null) {
 				throw new IllegalStateException("필수 필드가 없습니다.");
 			}
 
@@ -160,6 +154,7 @@ public class SalesActivityService {
 			String id = document.getString("id");
 			return new SalesActivity(
 					id == null ? document.getId() : id,
+					userId,
 					storeId,
 					SalesActivityType.valueOf(type),
 					content,

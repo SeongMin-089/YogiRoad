@@ -37,14 +37,15 @@ public class SalesInsightsService {
 		this.salesTargetService = salesTargetService;
 	}
 
-	public List<UpcomingSalesActionResponse> findUpcomingActions() {
+	public List<UpcomingSalesActionResponse> findUpcomingActions(String userId) {
 		Instant now = Instant.now();
 		List<SalesActivity> activities = salesActivityService.findUpcoming(
+				userId,
 				now,
 				now.plus(UPCOMING_WINDOW),
 				UPCOMING_LIMIT
 		);
-		Map<String, SalesTarget> targets = salesTargetService.findAll().stream()
+		Map<String, SalesTarget> targets = salesTargetService.findAll(userId).stream()
 				.collect(Collectors.toMap(SalesTarget::storeId, Function.identity()));
 
 		return activities.stream()
@@ -53,13 +54,13 @@ public class SalesInsightsService {
 				.toList();
 	}
 
-	public List<SalesPriorityResponse> findPriorities() {
+	public List<SalesPriorityResponse> findPriorities(String userId) {
 		Instant now = Instant.now();
 		LocalDate today = now.atZone(SEOUL_ZONE).toLocalDate();
-		Map<String, List<SalesActivity>> activitiesByStore = salesActivityService.findAll().stream()
+		Map<String, List<SalesActivity>> activitiesByStore = salesActivityService.findAll(userId).stream()
 				.collect(Collectors.groupingBy(SalesActivity::storeId));
 
-		return salesTargetService.findAll().stream()
+		return salesTargetService.findAll(userId).stream()
 				.filter(target -> target.status() != SalesStatus.계약완료
 						&& target.status() != SalesStatus.거절)
 				.map(target -> toPriorityResponse(

@@ -3,13 +3,16 @@
     "name": "YogiRoad",
     "slug": "YogiRoad",
     "version": "1.0.0",
+    "scheme": "yogiroad",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
+      "bundleIdentifier": "com.yogiroad.app",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.yogiroad.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -20,6 +23,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "@react-native-google-signin/google-signin"
+    ]
   }
 }

@@ -16,6 +16,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class SalesInsightsServiceTests {
+	private static final String USER_ID = "user-a";
 
 	@Test
 	void prioritiesFollowScheduleAndStatusRules() {
@@ -28,13 +29,13 @@ class SalesInsightsServiceTests {
 		SalesTarget consulting = target("B", "B 매장", SalesStatus.상담중);
 		SalesTarget unvisited = target("C", "C 매장", SalesStatus.미방문);
 		SalesTarget contracted = target("D", "D 매장", SalesStatus.계약완료);
-		when(targetService.findAll()).thenReturn(List.of(revisit, consulting, unvisited, contracted));
-		when(activityService.findAll()).thenReturn(List.of(
+		when(targetService.findAll(USER_ID)).thenReturn(List.of(revisit, consulting, unvisited, contracted));
+		when(activityService.findAll(USER_ID)).thenReturn(List.of(
 				activity("activity-a", "A", SalesActivityType.재방문, now.plus(Duration.ofMinutes(10))),
 				activity("activity-b", "B", SalesActivityType.전화, now.plus(Duration.ofDays(1)))
 		));
 
-		List<SalesPriorityResponse> priorities = service.findPriorities();
+		List<SalesPriorityResponse> priorities = service.findPriorities(USER_ID);
 
 		assertEquals(List.of("A", "B", "C"), priorities.stream()
 				.map(SalesPriorityResponse::storeId)
@@ -44,6 +45,7 @@ class SalesInsightsServiceTests {
 
 	private SalesTarget target(String storeId, String storeName, SalesStatus status) {
 		return new SalesTarget(
+				USER_ID,
 				storeId,
 				storeName,
 				"음식점",
@@ -64,6 +66,7 @@ class SalesInsightsServiceTests {
 	) {
 		return new SalesActivity(
 				id,
+				USER_ID,
 				storeId,
 				type,
 				"테스트 활동",

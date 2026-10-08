@@ -7,7 +7,6 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.yogiroad.backend.dto.SalesTargetCreateRequest;
 import com.yogiroad.backend.dto.SalesTargetUpdateRequest;
@@ -16,7 +15,9 @@ import com.yogiroad.backend.exception.FirestoreOperationException;
 import com.yogiroad.backend.exception.SalesTargetNotFoundException;
 import com.yogiroad.backend.model.SalesStatus;
 import com.yogiroad.backend.model.SalesTarget;
+import com.yogiroad.backend.util.FirestoreDocumentIds;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +37,9 @@ public class SalesTargetService {
 		this.salesActivityService = salesActivityService;
 	}
 
-	public SalesTarget register(SalesTargetCreateRequest request) {
+	public SalesTarget register(String userId, SalesTargetCreateRequest request) {
 		SalesTarget salesTarget = new SalesTarget(
+				userId,
 				request.storeId(),
 				request.storeName(),
 				request.category(),
@@ -49,9 +51,7 @@ public class SalesTargetService {
 				Instant.now()
 		);
 
-		DocumentReference document = firestore.collection(COLLECTION_NAME)
-				.document(salesTarget.storeId());
-
+		DocumentReference document = targetDocument(userId, salesTarget.storeId());
 		try {
 			document.create(toDocument(salesTarget)).get();
 			return salesTarget;
@@ -66,59 +66,66 @@ public class SalesTargetService {
 		}
 	}
 
-	public List<SalesTarget> findAll() {
-		ApiFuture<QuerySnapshot> future = firestore.collection(COLLECTION_NAME)
-				.orderBy("registeredAt", Query.Direction.DESCENDING)
-				.get();
-		QuerySnapshot snapshot = await(future, "영업 대상 목록 조회 중 오류가 발생했습니다.");
-
+	public List<SalesTarget> findAll(String userId) {
+		QuerySnapshot snapshot = await(
+				firestore.collection(COLLECTION_NAME).whereEqualTo("userId", userId).get(),
+				"영업 대상 목록 조회 중 오류가 발생했습니다."
+		);
 		return snapshot.getDocuments().stream()
 				.map(this::fromDocument)
+				.sorted(Comparator.comparing(SalesTarget::registeredAt).reversed())
 				.toList();
 	}
 
-	public SalesTarget findByStoreId(String storeId) {
-		DocumentReference reference = firestore.collection(COLLECTION_NAME).document(storeId);
+	public SalesTarget findByStoreId(String userId, String storeId) {
 		DocumentSnapshot document = await(
-				reference.get(),
+				targetDocument(userId, storeId).get(),
 				"영업 대상 조회 중 오류가 발생했습니다."
 		);
-
-		if (!document.exists()) {
+		if (!document.exists() || !userId.equals(document.getString("userId"))) {
 			throw new SalesTargetNotFoundException(storeId);
 		}
-
 		return fromDocument(document);
 	}
 
-	public SalesTarget update(String storeId, SalesTargetUpdateRequest request) {
-		DocumentReference document = firestore.collection(COLLECTION_NAME).document(storeId);
-		requireExisting(document, storeId, "영업 대상 수정 전 조회 중 오류가 발생했습니다.");
+	public SalesTarget update(String userId, String storeId, SalesTargetUpdateRequest request) {
+		DocumentReference document = targetDocument(userId, storeId);
+		requireOwned(document, userId, storeId, "영업 대상 수정 전 조회 중 오류가 발생했습니다.");
 
 		Map<String, Object> updates = new LinkedHashMap<>();
 		updates.put("status", request.status().name());
 		updates.put("memo", request.memo());
 		await(document.update(updates), "영업 대상 수정 중 오류가 발생했습니다.");
-
-		return findByStoreId(storeId);
+		return findByStoreId(userId, storeId);
 	}
 
-	public void delete(String storeId) {
-		DocumentReference document = firestore.collection(COLLECTION_NAME).document(storeId);
-		requireExisting(document, storeId, "영업 대상 삭제 전 조회 중 오류가 발생했습니다.");
-		salesActivityService.deleteAllByStoreId(storeId);
+	public void delete(String userId, String storeId) {
+		DocumentReference document = targetDocument(userId, storeId);
+		requireOwned(document, userId, storeId, "영업 대상 삭제 전 조회 중 오류가 발생했습니다.");
+		salesActivityService.deleteAllByStoreId(userId, storeId);
 		await(document.delete(), "영업 대상 삭제 중 오류가 발생했습니다.");
 	}
 
-	private void requireExisting(DocumentReference document, String storeId, String errorMessage) {
+	private DocumentReference targetDocument(String userId, String storeId) {
+		return firestore.collection(COLLECTION_NAME)
+				.document(FirestoreDocumentIds.salesTarget(userId, storeId));
+	}
+
+	private void requireOwned(
+			DocumentReference document,
+			String userId,
+			String storeId,
+			String errorMessage
+	) {
 		DocumentSnapshot snapshot = await(document.get(), errorMessage);
-		if (!snapshot.exists()) {
+		if (!snapshot.exists() || !userId.equals(snapshot.getString("userId"))) {
 			throw new SalesTargetNotFoundException(storeId);
 		}
 	}
 
 	private Map<String, Object> toDocument(SalesTarget salesTarget) {
 		Map<String, Object> data = new LinkedHashMap<>();
+		data.put("userId", salesTarget.userId());
 		data.put("storeId", salesTarget.storeId());
 		data.put("storeName", salesTarget.storeName());
 		data.put("category", salesTarget.category());
@@ -127,24 +134,23 @@ public class SalesTargetService {
 		data.put("longitude", salesTarget.longitude());
 		data.put("status", salesTarget.status().name());
 		data.put("memo", salesTarget.memo());
-		data.put("registeredAt", Timestamp.ofTimeSecondsAndNanos(
-				salesTarget.registeredAt().getEpochSecond(),
-				salesTarget.registeredAt().getNano()
-		));
+		data.put("registeredAt", toTimestamp(salesTarget.registeredAt()));
 		return data;
 	}
 
 	private SalesTarget fromDocument(DocumentSnapshot document) {
 		try {
+			String userId = document.getString("userId");
+			String storeId = document.getString("storeId");
 			String status = document.getString("status");
 			Timestamp registeredAt = document.getTimestamp("registeredAt");
-			if (status == null || registeredAt == null) {
+			if (userId == null || storeId == null || status == null || registeredAt == null) {
 				throw new IllegalStateException("필수 필드가 없습니다.");
 			}
 
-			String storeId = document.getString("storeId");
 			return new SalesTarget(
-					storeId == null ? document.getId() : storeId,
+					userId,
+					storeId,
 					document.getString("storeName"),
 					document.getString("category"),
 					document.getString("address"),
@@ -157,6 +163,10 @@ public class SalesTargetService {
 		} catch (RuntimeException exception) {
 			throw new FirestoreOperationException("영업 대상 데이터를 읽는 중 오류가 발생했습니다.", exception);
 		}
+	}
+
+	private Timestamp toTimestamp(Instant value) {
+		return Timestamp.ofTimeSecondsAndNanos(value.getEpochSecond(), value.getNano());
 	}
 
 	private boolean isAlreadyExists(Throwable cause) {
