@@ -2,10 +2,12 @@ import { useState } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import MainScreenLayout, { ui } from '../components/MainScreenLayout';
+import SalesPrioritySection from '../components/SalesPrioritySection';
 import SectionHeader from '../components/SectionHeader';
 import StatCard from '../components/StatCard';
 import StoreCard from '../components/StoreCard';
 import StoreDetailsModal from '../components/StoreDetailsModal';
+import UpcomingSalesActionsSection from '../components/UpcomingSalesActionsSection';
 import { colors } from '../constants/colors';
 import { useSalesTargets } from '../hooks/useSalesTargets';
 import type { SalesTarget } from '../services/salesTargetApi';
@@ -50,12 +52,12 @@ export default function HomeScreen({ navigation }: MainScreenProps<'Home'>) {
       </View> : null}
       {!loading && !error ? <View style={ui.grid}>{stats.map(stat => <StatCard key={stat.label} {...stat} />)}</View> : null}
     </View>
-    <View style={ui.section}><SectionHeader title="오늘 방문 예정" />
-      <View style={ui.empty}>
-        <Text style={ui.name}>등록된 방문 일정이 없습니다.</Text>
-        <Text style={ui.muted}>방문 일정 기능 준비중</Text>
-      </View>
-    </View>
+    <SalesPrioritySection
+      onSelectStore={storeId => navigation.navigate('Sales', { storeId })}
+    />
+    <UpcomingSalesActionsSection
+      onSelectStore={storeId => navigation.navigate('Sales', { storeId })}
+    />
     <View style={ui.section}><SectionHeader title="미방문 영업 대상" actionText="전체보기" onAction={() => navigation.navigate('Sales')} />
       {!loading && !error ? unvisitedTargets.map(target => <StoreCard
         key={target.storeId}
@@ -70,12 +72,6 @@ export default function HomeScreen({ navigation }: MainScreenProps<'Home'>) {
         <Text style={ui.name}>미방문 영업 대상이 없습니다.</Text>
         <Text style={ui.muted}>지도에서 새로운 영업 대상을 등록해 주세요.</Text>
       </View> : null}
-    </View>
-    <View style={ui.section}><SectionHeader title="최근 영업 활동" />
-      <View style={ui.empty}>
-        <Text style={ui.name}>영업 활동 기록 기능 준비중</Text>
-        <Text style={ui.muted}>방문 및 상담 기록이 구현되면 여기에 표시됩니다.</Text>
-      </View>
     </View>
     <StoreDetailsModal
       target={selectedTarget}

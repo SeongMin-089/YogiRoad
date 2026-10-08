@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import MainScreenLayout, { ui } from '../components/MainScreenLayout';
 import SearchField from '../components/SearchField';
@@ -7,12 +7,13 @@ import StoreCard from '../components/StoreCard';
 import StoreDetailsModal from '../components/StoreDetailsModal';
 import { useSalesTargets } from '../hooks/useSalesTargets';
 import type { SalesTarget } from '../services/salesTargetApi';
+import type { MainScreenProps } from '../types/navigation';
 import { SALES_STATUSES, type SalesStatus } from '../types/sales';
 
 type Filter = '전체' | SalesStatus;
 const filters: readonly Filter[] = ['전체', ...SALES_STATUSES];
 
-export default function SalesScreen() {
+export default function SalesScreen({ navigation, route }: MainScreenProps<'Sales'>) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('전체');
   const [selectedTarget, setSelectedTarget] = useState<SalesTarget | null>(null);
@@ -38,6 +39,21 @@ export default function SalesScreen() {
       ? salesTargets.length
       : salesTargets.filter(target => target.status === status).length,
   ])) as Record<Filter, number>, [salesTargets]);
+
+  useEffect(() => {
+    const requestedStoreId = route.params?.storeId;
+    if (!requestedStoreId || loading) return;
+
+    const requestedTarget = salesTargets.find(target => target.storeId === requestedStoreId);
+    if (requestedTarget) setSelectedTarget(requestedTarget);
+    navigation.setParams({ storeId: undefined });
+  }, [loading, navigation, route.params?.storeId, salesTargets]);
+
+  useEffect(() => {
+    if (!selectedTarget || loading) return;
+    const refreshedTarget = salesTargets.find(target => target.storeId === selectedTarget.storeId);
+    setSelectedTarget(refreshedTarget ?? null);
+  }, [loading, salesTargets, selectedTarget?.storeId]);
 
   return <MainScreenLayout title="영업관리">
     <View style={ui.section}>

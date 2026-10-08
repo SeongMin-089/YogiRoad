@@ -29,6 +29,17 @@ export type UpdateSalesTargetRequest = {
   memo: string;
 };
 
+export type SalesPriority = {
+  storeId: string;
+  storeName: string;
+  category: string;
+  address: string;
+  status: SalesStatus;
+  priorityScore: number;
+  reason: string;
+  nextActionAt: string | null;
+};
+
 export function createSalesTarget(requestBody: CreateSalesTargetRequest): Promise<SalesTarget> {
   return requestJson('/api/sales-targets', {
     method: 'POST',
@@ -60,4 +71,8 @@ export async function deleteSalesTarget(storeId: string): Promise<void> {
   await requestNoContent(`/api/sales-targets/${encodeURIComponent(storeId)}`, {
     method: 'DELETE',
   });
+}
+
+export function getSalesPriorities(): Promise<SalesPriority[]> {
+  return requestJson('/api/sales-targets/priorities');
 }

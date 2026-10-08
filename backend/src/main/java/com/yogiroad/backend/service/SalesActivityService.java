@@ -5,6 +5,7 @@ import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.WriteBatch;
@@ -64,6 +65,31 @@ public class SalesActivityService {
 		return snapshot.getDocuments().stream()
 				.map(this::fromDocument)
 				.sorted(Comparator.comparing(SalesActivity::createdAt).reversed())
+				.toList();
+	}
+
+	public List<SalesActivity> findAll() {
+		QuerySnapshot snapshot = await(
+				firestore.collection(ACTIVITIES_COLLECTION).get(),
+				"영업 활동 전체 조회 중 오류가 발생했습니다."
+		);
+		return snapshot.getDocuments().stream()
+				.map(this::fromDocument)
+				.toList();
+	}
+
+	public List<SalesActivity> findUpcoming(Instant from, Instant to, int limit) {
+		QuerySnapshot snapshot = await(
+				firestore.collection(ACTIVITIES_COLLECTION)
+						.whereGreaterThanOrEqualTo("nextActionAt", toTimestamp(from))
+						.whereLessThanOrEqualTo("nextActionAt", toTimestamp(to))
+						.orderBy("nextActionAt", Query.Direction.ASCENDING)
+						.limit(limit)
+						.get(),
+				"다가오는 영업 일정 조회 중 오류가 발생했습니다."
+		);
+		return snapshot.getDocuments().stream()
+				.map(this::fromDocument)
 				.toList();
 	}
 

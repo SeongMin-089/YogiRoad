@@ -1,4 +1,4 @@
-import type { SalesActivityType } from '../types/sales';
+import type { SalesActivityType, SalesStatus } from '../types/sales';
 import { requestJson, requestNoContent } from './apiClient';
 
 export { ApiError as SalesActivityApiError } from './apiClient';
@@ -16,6 +16,18 @@ export type CreateSalesActivityRequest = {
   type: SalesActivityType;
   content: string;
   nextActionAt: string | null;
+};
+
+export type UpcomingSalesAction = {
+  activityId: string;
+  storeId: string;
+  storeName: string;
+  category: string;
+  address: string;
+  status: SalesStatus;
+  type: SalesActivityType;
+  content: string;
+  nextActionAt: string;
 };
 
 function activitiesPath(storeId: string): string {
@@ -42,4 +54,8 @@ export async function deleteSalesActivity(storeId: string, activityId: string): 
     `${activitiesPath(storeId)}/${encodeURIComponent(activityId)}`,
     { method: 'DELETE' },
   );
+}
+
+export function getUpcomingSalesActions(): Promise<UpcomingSalesAction[]> {
+  return requestJson('/api/sales-activities/upcoming');
 }
