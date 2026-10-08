@@ -8,7 +8,13 @@ function toGoogleIosUrlScheme(clientId: string): string {
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
-  const googlePlugin = iosClientId
+  const googleServiceInfoPlist = process.env.GOOGLE_SERVICE_INFO_PLIST?.trim();
+  const googleServicesJson = process.env.GOOGLE_SERVICES_JSON?.trim();
+  const hasIosFirebaseNativeConfig = Boolean(
+    googleServiceInfoPlist
+    || config.ios?.googleServicesFile,
+  );
+  const googlePlugin = !hasIosFirebaseNativeConfig && iosClientId
     ? [
       '@react-native-google-signin/google-signin',
       { iosUrlScheme: toGoogleIosUrlScheme(iosClientId) },
@@ -19,6 +25,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: config.name ?? 'YogiRoad',
     slug: config.slug ?? 'YogiRoad',
+    ios: {
+      ...config.ios,
+      ...(googleServiceInfoPlist ? { googleServicesFile: googleServiceInfoPlist } : {}),
+    },
+    android: {
+      ...config.android,
+      ...(googleServicesJson ? { googleServicesFile: googleServicesJson } : {}),
+    },
     plugins: [
       ...(config.plugins ?? []).filter(plugin => {
         const name = Array.isArray(plugin) ? plugin[0] : plugin;

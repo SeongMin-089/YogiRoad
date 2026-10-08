@@ -38,6 +38,11 @@ yarn-error.*
 # Firebase service account credentials
 *firebase-adminsdk*.json
 service-account*.json
+*service-account*.json
+
+# Firebase client platform configuration (provided locally or by EAS file variables)
+/GoogleService-Info.plist
+/google-services.json
 
 # TypeScript
 *.tsbuildinfo

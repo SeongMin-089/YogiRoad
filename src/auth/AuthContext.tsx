@@ -5,7 +5,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import { auth } from '../config/firebase';
 
@@ -29,6 +29,7 @@ function requireEnvironmentValue(name: string, value: string | undefined): strin
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const googleSignInInProgress = useRef(false);
 
   useEffect(() => onAuthStateChanged(auth, currentUser => {
     setUser(currentUser);
@@ -39,6 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     signInWithGoogle: async () => {
+      if (googleSignInInProgress.current) return;
+
       const webClientId = requireEnvironmentValue(
         'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
         process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
         )
         : undefined;
+      googleSignInInProgress.current = true;
 
       try {
         const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
@@ -68,11 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const credential = GoogleAuthProvider.credential(idToken);
         await signInWithCredential(auth, credential);
       } catch (error) {
+        const errorCode = typeof error === 'object' && error !== null && 'code' in error
+          ? String(error.code)
+          : '';
+        if (errorCode === 'SIGN_IN_CANCELLED') return;
+
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes('native module') || message.includes('RNGoogleSignin')) {
-          throw new Error('Google 로그인은 Expo Go가 아닌 개발 빌드에서 실행해야 합니다.');
+          throw new Error('Google 로그인은 Expo Go에서 지원되지 않습니다. YogiRoad 개발 빌드에서 실행해 주세요.');
         }
         throw error;
+      } finally {
+        googleSignInInProgress.current = false;
       }
     },
     signOut: async () => {
