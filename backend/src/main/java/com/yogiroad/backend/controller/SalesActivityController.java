@@ -1,6 +1,6 @@
 package com.yogiroad.backend.controller;
 
-import com.yogiroad.backend.auth.FirebaseAuthFilter;
+import com.yogiroad.backend.auth.JwtAuthenticationFilter;
 import com.yogiroad.backend.dto.SalesActivityCreateRequest;
 import com.yogiroad.backend.model.SalesActivity;
 import com.yogiroad.backend.service.SalesActivityService;
@@ -30,7 +30,7 @@ public class SalesActivityController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public SalesActivity create(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@PathVariable String storeId,
 			@Valid @RequestBody SalesActivityCreateRequest request
 	) {
@@ -39,7 +39,7 @@ public class SalesActivityController {
 
 	@GetMapping
 	public List<SalesActivity> findAll(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@PathVariable String storeId
 	) {
 		return salesActivityService.findAll(userId, storeId);
@@ -48,7 +48,7 @@ public class SalesActivityController {
 	@DeleteMapping("/{activityId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void delete(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@PathVariable String storeId,
 			@PathVariable String activityId
 	) {

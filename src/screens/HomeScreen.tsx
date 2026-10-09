@@ -38,7 +38,7 @@ export default function HomeScreen({ navigation }: MainScreenProps<'Home'>) {
   return <MainScreenLayout>
     <View style={ui.section}>
       <View style={ui.row}><View style={ui.grow}>
-        <Text accessibilityRole="header" style={styles.greeting}>{user?.displayName?.trim() ? `${user.displayName.trim()}님, 안녕하세요.` : '안녕하세요.'}</Text>
+        <Text accessibilityRole="header" style={styles.greeting}>{user?.nickname?.trim() ? `${user.nickname.trim()}님, 안녕하세요.` : '안녕하세요.'}</Text>
         <Text style={styles.subtitle}>오늘도 좋은 영업 되세요.</Text>
       </View>
         <Pressable accessibilityRole="button" accessibilityLabel="마이 화면 열기" onPress={() => navigation.navigate('MyPage')} style={styles.avatar}>

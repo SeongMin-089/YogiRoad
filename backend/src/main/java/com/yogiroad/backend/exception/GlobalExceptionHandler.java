@@ -32,6 +32,12 @@ public class GlobalExceptionHandler {
 				.body(new ErrorResponse(exception.getMessage()));
 	}
 
+	@ExceptionHandler(LoginSessionNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleLoginSessionNotFound(LoginSessionNotFoundException exception) {
+		return ResponseEntity.status(HttpStatus.NOT_FOUND)
+				.body(new ErrorResponse(exception.getMessage()));
+	}
+
 	@ExceptionHandler(FirestoreOperationException.class)
 	public ResponseEntity<ErrorResponse> handleFirestore(FirestoreOperationException exception) {
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

@@ -1,6 +1,6 @@
 package com.yogiroad.backend.controller;
 
-import com.yogiroad.backend.auth.FirebaseAuthFilter;
+import com.yogiroad.backend.auth.JwtAuthenticationFilter;
 import com.yogiroad.backend.dto.SalesTargetCreateRequest;
 import com.yogiroad.backend.dto.SalesTargetUpdateRequest;
 import com.yogiroad.backend.model.SalesTarget;
@@ -32,7 +32,7 @@ public class SalesTargetController {
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED)
 	public SalesTarget register(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@Valid @RequestBody SalesTargetCreateRequest request
 	) {
 		return salesTargetService.register(userId, request);
@@ -40,14 +40,14 @@ public class SalesTargetController {
 
 	@GetMapping
 	public List<SalesTarget> findAll(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId
 	) {
 		return salesTargetService.findAll(userId);
 	}
 
 	@GetMapping("/{storeId}")
 	public SalesTarget findByStoreId(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@PathVariable String storeId
 	) {
 		return salesTargetService.findByStoreId(userId, storeId);
@@ -55,7 +55,7 @@ public class SalesTargetController {
 
 	@PatchMapping("/{storeId}")
 	public SalesTarget update(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@PathVariable String storeId,
 			@Valid @RequestBody SalesTargetUpdateRequest request
 	) {
@@ -65,7 +65,7 @@ public class SalesTargetController {
 	@DeleteMapping("/{storeId}")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void delete(
-			@RequestAttribute(FirebaseAuthFilter.UID_ATTRIBUTE) String userId,
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId,
 			@PathVariable String storeId
 	) {
 		salesTargetService.delete(userId, storeId);

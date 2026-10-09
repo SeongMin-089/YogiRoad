@@ -1,4 +1,4 @@
-import { auth } from '../config/firebase';
+import { clearAccessToken, getAccessToken, notifyUnauthorized } from '../auth/authTokenStore';
 
 export type ApiErrorKind = 'AUTH' | 'CONFIG' | 'NETWORK' | 'HTTP' | 'INVALID_RESPONSE';
 
@@ -42,21 +42,13 @@ async function getServerErrorMessage(response: Response): Promise<string> {
   return `서버 요청에 실패했습니다. (HTTP ${response.status})`;
 }
 
-async function sendRequest(path: string, init?: RequestInit): Promise<Response> {
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
-    throw new ApiError('AUTH', '로그인이 필요합니다.', 401);
-  }
-
-  let token: string;
-  try {
-    token = await currentUser.getIdToken();
-  } catch {
-    throw new ApiError('AUTH', '로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.', 401);
-  }
-
+async function sendRequest(path: string, init?: RequestInit, authenticated = true): Promise<Response> {
   const headers = new Headers(init?.headers);
-  headers.set('Authorization', `Bearer ${token}`);
+  if (authenticated) {
+    const token = await getAccessToken();
+    if (!token) throw new ApiError('AUTH', '로그인이 필요합니다.', 401);
+    headers.set('Authorization', `Bearer ${token}`);
+  }
 
   let response: Response;
   try {
@@ -70,7 +62,9 @@ async function sendRequest(path: string, init?: RequestInit): Promise<Response> 
   }
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && authenticated) {
+      await clearAccessToken();
+      notifyUnauthorized();
       throw new ApiError('AUTH', '로그인이 만료되었습니다. 다시 로그인해 주세요.', 401);
     }
     throw new ApiError('HTTP', await getServerErrorMessage(response), response.status);
@@ -79,13 +73,20 @@ async function sendRequest(path: string, init?: RequestInit): Promise<Response> 
   return response;
 }
 
-export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await sendRequest(path, init);
+async function parseJson<T>(response: Response): Promise<T> {
   try {
     return await response.json() as T;
   } catch {
     throw new ApiError('INVALID_RESPONSE', '서버 응답을 읽을 수 없습니다.');
   }
+}
+
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return parseJson<T>(await sendRequest(path, init));
+}
+
+export async function requestPublicJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return parseJson<T>(await sendRequest(path, init, false));
 }
 
 export async function requestNoContent(path: string, init?: RequestInit): Promise<void> {
