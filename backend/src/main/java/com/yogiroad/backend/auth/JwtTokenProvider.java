@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import javax.crypto.SecretKey;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,7 @@ public class JwtTokenProvider {
 	private final Duration expiration;
 	private final Clock clock;
 
+	@Autowired
 	public JwtTokenProvider(
 			@Value("${yogiroad.jwt.secret}") String secret,
 			@Value("${yogiroad.jwt.expiration}") Duration expiration

@@ -11,6 +11,7 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,7 @@ public class LoginSessionStore {
 	private final Duration ttl;
 	private final Clock clock;
 
+	@Autowired
 	public LoginSessionStore(@Value("${yogiroad.auth.session-ttl}") Duration ttl) {
 		this(ttl, Clock.systemUTC());
 	}

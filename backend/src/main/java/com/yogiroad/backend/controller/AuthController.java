@@ -10,6 +10,8 @@ import com.yogiroad.backend.dto.LoginSessionStatusResponse;
 import com.yogiroad.backend.exception.InvalidOAuthStateException;
 import com.yogiroad.backend.exception.KakaoLoginException;
 import java.net.URI;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -28,6 +30,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+	private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
 	private final LoginSessionStore sessionStore;
 	private final KakaoOAuthClient kakaoOAuthClient;
@@ -71,17 +74,29 @@ public class AuthController {
 			@RequestParam(required = false) String error
 	) {
 		try {
-			if (error != null || code == null || code.isBlank()) {
+			if (error != null) {
+				log.warn("Kakao OAuth provider가 callback 오류를 반환했습니다: error={}",
+						KakaoOAuthClient.sanitizeForLog(error));
+				sessionStore.rejectByState(state, "카카오 로그인이 취소되었거나 승인되지 않았습니다.");
+				return completionPage(false);
+			}
+			if (code == null || code.isBlank()) {
+				log.warn("Kakao callback에 authorization code가 없습니다. statePresent={}",
+						state != null && !state.isBlank());
 				sessionStore.rejectByState(state, "카카오 로그인이 취소되었거나 승인되지 않았습니다.");
 				return completionPage(false);
 			}
 			kakaoAuthService.completeLogin(code, state);
 			return completionPage(true);
 		} catch (InvalidOAuthStateException exception) {
+			log.warn("Kakao callback OAuth state 검증에 실패했습니다. statePresent={}",
+					state != null && !state.isBlank());
 			return completionPage(false, HttpStatus.BAD_REQUEST);
 		} catch (KakaoLoginException exception) {
+			log.error("Kakao callback 처리 실패: {}", exception.getMessage());
 			return completionPage(false);
 		} catch (RuntimeException exception) {
+			log.error("Kakao callback 처리 중 예상하지 못한 RuntimeException이 발생했습니다.", exception);
 			return completionPage(false, HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
