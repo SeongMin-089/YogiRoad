@@ -21,7 +21,7 @@ export type PublicDataStore = {
 };
 
 type ErrorKind = 'MISSING_KEY' | 'INVALID_KEY_ENCODING' | 'NETWORK_ERROR' | 'HTTP_ERROR'
-  | 'JSON_PARSE_ERROR' | 'API_ERROR' | 'INVALID_RESPONSE' | 'NO_ITEMS';
+  | 'JSON_PARSE_ERROR' | 'API_ERROR' | 'INVALID_RESPONSE' | 'INVALID_PARAMETER' | 'NO_ITEMS';
 
 export class PublicDataApiError extends Error {
   constructor(public readonly kind: ErrorKind, message: string) {
@@ -31,6 +31,22 @@ export class PublicDataApiError extends Error {
 }
 
 const ENDPOINT = 'https://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius';
+export const DEFAULT_RESTAURANT_SEARCH = {
+  latitude: 37.7336614,
+  longitude: 127.2121189,
+  radius: 1000,
+  pageNo: 1,
+  numOfRows: 100,
+} as const;
+
+export type RestaurantSearchOptions = {
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
+  pageNo?: number;
+  numOfRows?: number;
+  signal?: AbortSignal;
+};
 const stringFields = [
   'bizesId', 'bizesNm', 'brchNm', 'indsLclsCd', 'indsLclsNm', 'indsMclsCd',
   'indsMclsNm', 'indsSclsCd', 'indsSclsNm', 'ctprvnNm', 'signguNm', 'adongNm',
@@ -83,7 +99,43 @@ function normalizeStore(item: unknown): PublicDataStore {
   return store;
 }
 
-export async function fetchRestaurantsInRadius(): Promise<PublicDataStore[]> {
+function assertSearchParameters({
+  latitude,
+  longitude,
+  radius,
+  pageNo,
+  numOfRows,
+}: Required<Omit<RestaurantSearchOptions, 'signal'>>): void {
+  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 ||
+      !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    throw new PublicDataApiError('INVALID_PARAMETER', '검색 중심 좌표가 올바르지 않습니다.');
+  }
+  // The official radius endpoint accepts at most 2,000 metres.
+  if (!Number.isInteger(radius) || radius < 1 || radius > 2000) {
+    throw new PublicDataApiError('INVALID_PARAMETER', '검색 반경은 1m 이상 2km 이하여야 합니다.');
+  }
+  if (!Number.isInteger(pageNo) || pageNo < 1) {
+    throw new PublicDataApiError('INVALID_PARAMETER', '페이지 번호는 1 이상의 정수여야 합니다.');
+  }
+  // The API guide permits more, but the map intentionally caps a response at 100.
+  if (!Number.isInteger(numOfRows) || numOfRows < 1 || numOfRows > 100) {
+    throw new PublicDataApiError('INVALID_PARAMETER', '페이지당 조회 수는 1~100이어야 합니다.');
+  }
+}
+
+export async function fetchRestaurantsInRadius(
+  options: RestaurantSearchOptions = {},
+): Promise<PublicDataStore[]> {
+  const {
+    latitude = DEFAULT_RESTAURANT_SEARCH.latitude,
+    longitude = DEFAULT_RESTAURANT_SEARCH.longitude,
+    radius = DEFAULT_RESTAURANT_SEARCH.radius,
+    pageNo = DEFAULT_RESTAURANT_SEARCH.pageNo,
+    numOfRows = DEFAULT_RESTAURANT_SEARCH.numOfRows,
+    signal,
+  } = options;
+  assertSearchParameters({ latitude, longitude, radius, pageNo, numOfRows });
+
   const configuredKey = process.env.EXPO_PUBLIC_PUBLIC_DATA_KEY?.trim();
   if (!configuredKey) throw new PublicDataApiError('MISSING_KEY', 'EXPO_PUBLIC_PUBLIC_DATA_KEY를 설정해 주세요.');
 
@@ -95,10 +147,19 @@ export async function fetchRestaurantsInRadius(): Promise<PublicDataStore[]> {
     throw new PublicDataApiError('INVALID_KEY_ENCODING', '인증키의 URL 인코딩 형식을 확인해 주세요.');
   }
   const params = new URLSearchParams({
-    serviceKey, cx: '127.2121189', cy: '37.7336614', radius: '1000',
-    indsLclsCd: 'I2', numOfRows: '20', pageNo: '1', type: 'json',
+    serviceKey,
+    cx: String(longitude),
+    cy: String(latitude),
+    radius: String(radius),
+    indsLclsCd: 'I2',
+    numOfRows: String(numOfRows),
+    pageNo: String(pageNo),
+    type: 'json',
   });
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener('abort', abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), 20000);
   let text: string;
   try {
@@ -112,6 +173,7 @@ export async function fetchRestaurantsInRadius(): Promise<PublicDataStore[]> {
       ? '요청 시간이 20초를 초과했습니다.' : '네트워크 연결 또는 제공기관 접속을 확인해 주세요.');
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortFromCaller);
   }
 
   let parsed: unknown;
@@ -134,8 +196,21 @@ export async function fetchRestaurantsInRadius(): Promise<PublicDataStore[]> {
   const items: unknown = isRecord(root.body) ? root.body.items : undefined;
   const rows: unknown = isRecord(items) ? items.item : items;
   if (rows === undefined || rows === null || rows === '' || (Array.isArray(rows) && rows.length === 0)) {
-    throw new PublicDataApiError('NO_ITEMS', '반경 1km 내 음식점 items가 없습니다.');
+    return [];
   }
-  if (!Array.isArray(rows)) throw new PublicDataApiError('INVALID_RESPONSE', 'items가 배열이 아닙니다.');
-  return rows.map(normalizeStore);
+  const normalizedRows = Array.isArray(rows)
+    ? rows.map(normalizeStore)
+    : isRecord(rows)
+      ? [normalizeStore(rows)]
+      : null;
+  if (!normalizedRows) throw new PublicDataApiError('INVALID_RESPONSE', 'items가 배열이 아닙니다.');
+
+  const seenStoreIds = new Set<string>();
+  return normalizedRows.filter(store => {
+    const storeId = store.bizesId?.trim();
+    if (!storeId) return true;
+    if (seenStoreIds.has(storeId)) return false;
+    seenStoreIds.add(storeId);
+    return true;
+  });
 }
