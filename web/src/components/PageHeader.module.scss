@@ -1,0 +1,9 @@
+.header {
+  max-width: 45rem;
+  margin-bottom: clamp(1.5rem, 5vw, 2.5rem);
+
+  h1 { margin: 0.3rem 0 0.65rem; font-size: clamp(1.75rem, 5vw, 2.65rem); line-height: 1.16; letter-spacing: -0.045em; }
+  p { margin: 0; color: var(--color-text-muted); line-height: 1.7; }
+}
+
+.eyebrow { color: var(--color-primary-dark); font-size: 0.76rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
