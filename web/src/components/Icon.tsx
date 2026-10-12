@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react';
 
-export type IconName = 'home' | 'map' | 'briefcase' | 'chart' | 'user' | 'arrow' | 'pin' | 'logout';
+export type IconName = 'home' | 'map' | 'briefcase' | 'chart' | 'user' | 'arrow' | 'pin' | 'logout'
+  | 'search' | 'location' | 'chevron' | 'close';
 
 const paths: Record<IconName, React.ReactNode> = {
   home: <><path d="M3 10.8 12 3l9 7.8" /><path d="M5.5 9.5V21h13V9.5M9 21v-7h6v7" /></>,
@@ -11,6 +12,10 @@ const paths: Record<IconName, React.ReactNode> = {
   arrow: <><path d="M5 12h14M14 7l5 5-5 5" /></>,
   pin: <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
   logout: <><path d="M10 17l5-5-5-5M15 12H3" /><path d="M13 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
+  location: <><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
+  chevron: <path d="m9 18 6-6-6-6" />,
+  close: <><path d="m6 6 12 12M18 6 6 18" /></>,
 };
 
 type IconProps = SVGProps<SVGSVGElement> & { name: IconName };
