@@ -6,15 +6,16 @@ import { navigationItems } from '../../config/navigation';
 import styles from './AppShell.module.scss';
 
 function UserAvatar() {
-  const { user } = useAuth();
-  if (user?.profileImageUrl) {
-    return <img className={styles.avatar} src={user.profileImageUrl} alt="" referrerPolicy="no-referrer" />;
+  const { user, profile } = useAuth();
+  const imageUrl = profile?.effectiveProfileImageUrl || user?.profileImageUrl;
+  if (imageUrl) {
+    return <img className={styles.avatar} src={imageUrl} alt="" referrerPolicy="no-referrer" />;
   }
   return <span className={styles.avatarFallback}><Icon name="user" /></span>;
 }
 
 export function AppShell() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   return (
     <div className={styles.shell}>
@@ -36,7 +37,7 @@ export function AppShell() {
         <div className={styles.sidebarProfile}>
           <UserAvatar />
           <div>
-            <strong>{user?.nickname?.trim() || 'YogiRoad 사용자'}</strong>
+            <strong>{profile?.effectiveName?.trim() || user?.nickname?.trim() || 'YogiRoad 사용자'}</strong>
             <span>카카오 계정</span>
           </div>
         </div>

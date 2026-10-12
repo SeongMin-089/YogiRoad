@@ -1,0 +1,25 @@
+.toolbar { display: grid; gap: 0.8rem; margin-top: 1.25rem; }
+.search { display: flex; align-items: center; gap: 0.65rem; padding: 0 0.9rem; background: #fff; border: 1px solid var(--color-border); border-radius: 0.9rem; }
+.search svg { width: 1.15rem; color: var(--color-text-muted); }
+.search input { width: 100%; min-height: 3.25rem; background: transparent; border: 0; outline: 0; }
+.filters { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.15rem 0 0.35rem; scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.filters button { flex: 0 0 auto; min-height: 2.65rem; padding: 0.55rem 0.8rem; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: 0.75rem; cursor: pointer; font-size: 0.78rem; font-weight: 750; }
+.filters .active { color: var(--color-primary-dark); background: var(--color-primary-soft); border-color: var(--color-primary); }
+.summary { margin: 0.85rem 0; color: var(--color-text-muted); font-size: 0.8rem; }
+.list { display: grid; gap: 0.75rem; }
+.card { display: grid; width: 100%; gap: 0.7rem; padding: 1rem; text-align: left; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); cursor: pointer; }
+.card:hover { border-color: #ffc4c2; }
+.cardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.card h2 { overflow: hidden; margin: 0; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
+.status { flex: 0 0 auto; padding: 0.3rem 0.55rem; color: var(--color-primary-dark); background: var(--color-primary-soft); border-radius: 0.45rem; font-size: 0.7rem; font-weight: 800; }
+.card p { margin: 0; color: var(--color-text-muted); font-size: 0.8rem; line-height: 1.5; }
+.cardMeta { display: flex; justify-content: space-between; gap: 0.75rem; color: var(--color-text-subtle); font-size: 0.72rem; }
+.state { display: grid; min-height: 16rem; place-content: center; justify-items: center; gap: 0.75rem; padding: 2rem; text-align: center; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); }
+.state strong { color: var(--color-text); }
+.retry { min-height: 2.7rem; padding: 0.6rem 1rem; color: #fff; background: var(--color-primary); border: 0; border-radius: 0.75rem; cursor: pointer; font-weight: 750; }
+
+@media (min-width: 720px) {
+  .toolbar { grid-template-columns: minmax(16rem, 1fr) auto; align-items: center; }
+  .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

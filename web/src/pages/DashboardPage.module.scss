@@ -1,0 +1,41 @@
+.periods { display: flex; gap: 0.5rem; margin: 1.25rem 0 1rem; }
+.periods button { min-height: 2.75rem; padding: 0.55rem 0.95rem; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: 0.75rem; cursor: pointer; font-size: 0.8rem; font-weight: 750; }
+.periods .active { color: #fff; background: var(--color-primary); border-color: var(--color-primary); }
+.metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.metric { min-width: 0; padding: 1rem; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.metric span { color: var(--color-text-muted); font-size: 0.72rem; }
+.metric strong { display: block; margin-top: 0.45rem; font-size: clamp(1.4rem, 6vw, 2rem); letter-spacing: -0.05em; }
+.metric small { display: block; margin-top: 0.35rem; color: var(--color-text-subtle); font-size: 0.68rem; line-height: 1.4; }
+.section { margin-top: 1rem; padding: 1rem; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.heading h2 { margin: 0; font-size: 1rem; }
+.heading span { color: var(--color-text-muted); font-size: 0.75rem; }
+.chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.4rem; height: 12rem; align-items: end; padding-top: 1rem; border-bottom: 1px solid var(--color-border); }
+.barGroup { display: grid; height: 100%; grid-template-rows: 1fr auto; gap: 0.45rem; align-items: end; justify-items: center; }
+.barTrack { display: flex; width: min(100%, 2rem); height: 100%; align-items: end; justify-content: center; background: linear-gradient(to top, var(--color-surface) 1px, transparent 1px); }
+.bar { position: relative; width: 100%; min-height: 0.25rem; background: var(--color-primary); border-radius: 0.45rem 0.45rem 0 0; transition: height 240ms ease; }
+.bar span { position: absolute; right: 50%; bottom: calc(100% + 0.3rem); color: var(--color-text); font-size: 0.68rem; font-weight: 800; transform: translateX(50%); }
+.barGroup small { padding-bottom: 0.45rem; color: var(--color-text-muted); font-size: 0.7rem; }
+.chartSummary { margin: 0.8rem 0 0; color: var(--color-text-muted); font-size: 0.78rem; text-align: right; }
+.progressList { display: grid; gap: 0.9rem; }
+.progressRow { display: grid; gap: 0.4rem; }
+.progressMeta { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.78rem; }
+.progressMeta strong { font-size: 0.8rem; }
+.progressMeta span { color: var(--color-text-muted); }
+.track { height: 0.55rem; overflow: hidden; background: var(--color-surface); border-radius: 999px; }
+.fill { height: 100%; min-width: 0; border-radius: inherit; }
+.recentList { display: grid; gap: 0.6rem; }
+.recent { display: grid; gap: 0.3rem; padding: 0.85rem; color: inherit; background: var(--color-app-background); border-radius: 0.85rem; text-decoration: none; }
+.recent strong { font-size: 0.86rem; }
+.recent span { overflow: hidden; color: var(--color-text-muted); font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.recent small { color: var(--color-text-subtle); font-size: 0.7rem; }
+.note { margin: 0.8rem 0 0; color: var(--color-text-subtle); font-size: 0.69rem; line-height: 1.5; }
+.state { display: grid; min-height: 18rem; place-content: center; justify-items: center; gap: 0.75rem; margin-top: 1.25rem; padding: 2rem; text-align: center; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); }
+.state strong { color: var(--color-text); }
+.retry { min-height: 2.7rem; padding: 0.6rem 1rem; color: #fff; background: var(--color-primary); border: 0; border-radius: 0.75rem; cursor: pointer; font-weight: 750; }
+
+@media (min-width: 720px) {
+  .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dashboardGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr); gap: 1rem; }
+  .dashboardGrid .section { min-width: 0; }
+}

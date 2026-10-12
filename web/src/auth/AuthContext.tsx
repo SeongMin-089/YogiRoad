@@ -15,15 +15,19 @@ import {
   getMe,
   type AuthUser,
 } from '../services/authApi';
+import { getUserProfile } from '../services/userProfileApi';
+import type { UserProfile } from '../types/userProfile';
 
 const POLL_INTERVAL_MS = 1_500;
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1_000;
 
 type AuthContextValue = {
   user: AuthUser | null;
+  profile: UserProfile | null;
   initializing: boolean;
   signInWithKakao: () => Promise<void>;
   signOut: () => void;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -34,6 +38,7 @@ function delay(ms: number): Promise<void> {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const loginInProgress = useRef(false);
 
@@ -44,7 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (getAccessToken()) {
           const currentUser = await getMe();
-          if (active) setUser(currentUser);
+          const currentProfile = await getUserProfile().catch(() => null);
+          if (active) {
+            setUser(currentUser);
+            setProfile(currentProfile);
+          }
         }
       } catch {
         clearAccessToken();
@@ -54,7 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     void restoreSession();
-    const unsubscribe = setUnauthorizedHandler(() => setUser(null));
+    const unsubscribe = setUnauthorizedHandler(() => {
+      setUser(null);
+      setProfile(null);
+    });
     return () => {
       active = false;
       unsubscribe();
@@ -82,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (status.status === 'SUCCESS' && status.accessToken) {
           setAccessToken(status.accessToken);
           setUser(await getMe());
+          setProfile(await getUserProfile().catch(() => null));
           popup.close();
           return;
         }
@@ -101,11 +114,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     clearAccessToken();
     setUser(null);
+    setProfile(null);
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (!getAccessToken()) return;
+    setProfile(await getUserProfile());
   }, []);
 
   const value = useMemo(
-    () => ({ user, initializing, signInWithKakao, signOut }),
-    [initializing, signInWithKakao, signOut, user],
+    () => ({ user, profile, initializing, signInWithKakao, signOut, refreshProfile }),
+    [initializing, profile, refreshProfile, signInWithKakao, signOut, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

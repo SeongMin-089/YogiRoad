@@ -113,12 +113,13 @@ function candidateAsPublicStore(candidate: RestaurantLicenseCandidate, coordinat
 }
 
 export function MapPage() {
+  const initialManagedRegion = useMemo(() => new URLSearchParams(window.location.search).get('region')?.trim() ?? '', []);
   const [storeQuery, setStoreQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'전체' | SalesStatus>('전체');
   const [discoveryFilter, setDiscoveryFilter] = useState<DiscoveryFilter>('전체 음식점');
   const [mapCenter, setMapCenter] = useState<MapCenter>(DEFAULT_CENTER);
   const [needsAreaSearch, setNeedsAreaSearch] = useState(false);
-  const [regionQuery, setRegionQuery] = useState('');
+  const [regionQuery, setRegionQuery] = useState(initialManagedRegion);
   const [regionSearchRequest, setRegionSearchRequest] = useState<RegionSearchRequest | null>(null);
   const [regionSearchStatus, setRegionSearchStatus] = useState<'idle' | 'loading' | 'results' | 'zero' | 'error'>('idle');
   const [regionResults, setRegionResults] = useState<KakaoPlaceSearchResult[]>([]);
@@ -140,6 +141,7 @@ export function MapPage() {
   const licenseRequestVersion = useRef(0);
   const activeLicenseRequest = useRef<{ key: string; controller: AbortController } | null>(null);
   const regionRequestId = useRef(0);
+  const managedRegionRequestRef = useRef(initialManagedRegion);
 
   const loadStores = useCallback(async (center: MapCenter) => {
     const requestKey = [center.latitude.toFixed(6), center.longitude.toFixed(6), SEARCH_RADIUS,
@@ -236,6 +238,13 @@ export function MapPage() {
       activeLicenseRequest.current?.controller.abort();
     };
   }, [loadLicenseCandidates, loadStores]);
+
+  useEffect(() => {
+    if (!managedRegionRequestRef.current) return;
+    const id = ++regionRequestId.current;
+    setRegionSearchRequest({ id, query: managedRegionRequestRef.current });
+    setRegionSearchStatus('loading');
+  }, []);
 
   useEffect(() => {
     if (regionSearchStatus !== 'loading' || !regionSearchRequest) return;
@@ -346,6 +355,12 @@ export function MapPage() {
 
   function handleRegionSearchResult(requestId: number, results: KakaoPlaceSearchResult[], resultStatus: RegionSearchStatus) {
     if (requestId !== regionRequestId.current) return;
+    if (managedRegionRequestRef.current && resultStatus === 'ok' && results[0]) {
+      managedRegionRequestRef.current = '';
+      selectRegion(results[0]);
+      return;
+    }
+    managedRegionRequestRef.current = '';
     setRegionResults(results);
     setRegionSearchStatus(resultStatus === 'ok' ? 'results' : resultStatus);
   }
