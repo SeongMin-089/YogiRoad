@@ -29,6 +29,17 @@ class JwtAuthenticationFilterTests {
 	}
 
 	@Test
+	void dashboardApiWithoutAuthorizationHeaderReturnsUnauthorized() throws Exception {
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(mock(JwtTokenProvider.class));
+		MockHttpServletRequest request = request("GET", "/api/sales-activities/dashboard");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, mock(FilterChain.class));
+
+		assertEquals(401, response.getStatus());
+	}
+
+	@Test
 	void invalidJwtReturnsUnauthorized() throws Exception {
 		JwtTokenProvider provider = mock(JwtTokenProvider.class);
 		when(provider.verify("invalid")).thenThrow(new MalformedJwtException("invalid"));

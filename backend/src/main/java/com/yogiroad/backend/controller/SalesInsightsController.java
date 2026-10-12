@@ -1,6 +1,7 @@
 package com.yogiroad.backend.controller;
 
 import com.yogiroad.backend.auth.JwtAuthenticationFilter;
+import com.yogiroad.backend.dto.SalesDashboardResponse;
 import com.yogiroad.backend.dto.SalesPriorityResponse;
 import com.yogiroad.backend.dto.UpcomingSalesActionResponse;
 import com.yogiroad.backend.service.SalesInsightsService;
@@ -16,6 +17,13 @@ public class SalesInsightsController {
 
 	public SalesInsightsController(SalesInsightsService salesInsightsService) {
 		this.salesInsightsService = salesInsightsService;
+	}
+
+	@GetMapping("/api/sales-activities/dashboard")
+	public SalesDashboardResponse getDashboard(
+			@RequestAttribute(JwtAuthenticationFilter.USER_ID_ATTRIBUTE) String userId
+	) {
+		return salesInsightsService.getDashboard(userId);
 	}
 
 	@GetMapping("/api/sales-activities/upcoming")

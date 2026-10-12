@@ -1,21 +1,34 @@
 package com.yogiroad.backend.service;
 
+import com.yogiroad.backend.dto.SalesDashboardResponse;
+import com.yogiroad.backend.dto.SalesDashboardResponse.CompletedStore;
+import com.yogiroad.backend.dto.SalesDashboardResponse.DailyConsultation;
+import com.yogiroad.backend.dto.SalesDashboardResponse.DashboardPeriod;
+import com.yogiroad.backend.dto.SalesDashboardResponse.PeriodPerformance;
+import com.yogiroad.backend.dto.SalesDashboardResponse.StatusProgress;
 import com.yogiroad.backend.dto.SalesPriorityResponse;
 import com.yogiroad.backend.dto.UpcomingSalesActionResponse;
 import com.yogiroad.backend.model.SalesActivity;
+import com.yogiroad.backend.model.SalesActivityType;
 import com.yogiroad.backend.model.SalesStatus;
 import com.yogiroad.backend.model.SalesTarget;
+import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,17 +41,108 @@ public class SalesInsightsService {
 
 	private final SalesActivityService salesActivityService;
 	private final SalesTargetService salesTargetService;
+	private final Clock clock;
 
 	public SalesInsightsService(
 			SalesActivityService salesActivityService,
 			SalesTargetService salesTargetService
 	) {
+		this(salesActivityService, salesTargetService, Clock.systemUTC());
+	}
+
+	SalesInsightsService(
+			SalesActivityService salesActivityService,
+			SalesTargetService salesTargetService,
+			Clock clock
+	) {
 		this.salesActivityService = salesActivityService;
 		this.salesTargetService = salesTargetService;
+		this.clock = clock;
+	}
+
+	public SalesDashboardResponse getDashboard(String userId) {
+		Instant now = clock.instant();
+		LocalDate today = now.atZone(SEOUL_ZONE).toLocalDate();
+		LocalDate weekStartDate = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+		Instant weekStart = startOfDay(weekStartDate);
+		Instant weekEnd = startOfDay(weekStartDate.plusDays(7));
+		LocalDate monthStartDate = today.withDayOfMonth(1);
+		Instant monthStart = startOfDay(monthStartDate);
+		Instant monthEnd = startOfDay(monthStartDate.plusMonths(1));
+
+		// Two user-scoped Firestore queries back the whole dashboard.
+		List<SalesTarget> targets = salesTargetService.findAll(userId);
+		List<SalesActivity> consultations = salesActivityService.findAll(userId).stream()
+				.filter(activity -> activity.type() == SalesActivityType.상담)
+				.toList();
+
+		int total = targets.size();
+		int completed = (int) targets.stream()
+				.filter(target -> target.status() == SalesStatus.계약완료)
+				.count();
+		int thisWeekConsultations = countActivities(consultations, weekStart, weekEnd);
+
+		Map<DashboardPeriod, PeriodPerformance> periods = new EnumMap<>(DashboardPeriod.class);
+		periods.put(DashboardPeriod.WEEK, periodPerformance(
+				targets, consultations, weekStart, weekEnd
+		));
+		periods.put(DashboardPeriod.MONTH, periodPerformance(
+				targets, consultations, monthStart, monthEnd
+		));
+		periods.put(DashboardPeriod.ALL, new PeriodPerformance(
+				null, null, total, consultations.size()
+		));
+
+		List<DailyConsultation> weeklyConsultations = IntStream.range(0, 7)
+				.mapToObj(offset -> {
+					LocalDate date = weekStartDate.plusDays(offset);
+					return new DailyConsultation(
+							date,
+							dayLabel(offset),
+							countActivities(consultations, startOfDay(date), startOfDay(date.plusDays(1)))
+					);
+				})
+				.toList();
+
+		List<StatusProgress> statusProgress = Arrays.stream(SalesStatus.values())
+				.map(status -> {
+					int count = (int) targets.stream()
+							.filter(target -> target.status() == status)
+							.count();
+					return new StatusProgress(status, count, percentage(count, total));
+				})
+				.toList();
+
+		List<CompletedStore> recentCompletedStores = targets.stream()
+				.filter(target -> target.status() == SalesStatus.계약완료)
+				.sorted(Comparator.comparing(SalesTarget::registeredAt).reversed())
+				.limit(5)
+				.map(target -> new CompletedStore(
+						target.storeId(),
+						target.storeName(),
+						target.category(),
+						target.address(),
+						target.registeredAt()
+				))
+				.toList();
+
+		return new SalesDashboardResponse(
+				now,
+				new SalesDashboardResponse.Summary(
+						total,
+						completed,
+						percentage(completed, total),
+						thisWeekConsultations
+				),
+				periods,
+				weeklyConsultations,
+				statusProgress,
+				recentCompletedStores
+		);
 	}
 
 	public List<UpcomingSalesActionResponse> findUpcomingActions(String userId) {
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		List<SalesActivity> activities = salesActivityService.findUpcoming(
 				userId,
 				now,
@@ -55,7 +159,7 @@ public class SalesInsightsService {
 	}
 
 	public List<SalesPriorityResponse> findPriorities(String userId) {
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		LocalDate today = now.atZone(SEOUL_ZONE).toLocalDate();
 		Map<String, List<SalesActivity>> activitiesByStore = salesActivityService.findAll(userId).stream()
 				.collect(Collectors.groupingBy(SalesActivity::storeId));
@@ -72,6 +176,59 @@ public class SalesInsightsService {
 				.sorted(priorityComparator())
 				.limit(PRIORITY_LIMIT)
 				.toList();
+	}
+
+	private PeriodPerformance periodPerformance(
+			List<SalesTarget> targets,
+			List<SalesActivity> consultations,
+			Instant startInclusive,
+			Instant endExclusive
+	) {
+		int registeredStores = (int) targets.stream()
+				.filter(target -> inRange(target.registeredAt(), startInclusive, endExclusive))
+				.count();
+		return new PeriodPerformance(
+				startInclusive,
+				endExclusive,
+				registeredStores,
+				countActivities(consultations, startInclusive, endExclusive)
+		);
+	}
+
+	private int countActivities(
+			List<SalesActivity> activities,
+			Instant startInclusive,
+			Instant endExclusive
+	) {
+		return (int) activities.stream()
+				.filter(activity -> inRange(activity.createdAt(), startInclusive, endExclusive))
+				.count();
+	}
+
+	private boolean inRange(Instant value, Instant startInclusive, Instant endExclusive) {
+		return !value.isBefore(startInclusive) && value.isBefore(endExclusive);
+	}
+
+	private Instant startOfDay(LocalDate date) {
+		return date.atStartOfDay(SEOUL_ZONE).toInstant();
+	}
+
+	private String dayLabel(int offset) {
+		return switch (offset) {
+			case 0 -> "월";
+			case 1 -> "화";
+			case 2 -> "수";
+			case 3 -> "목";
+			case 4 -> "금";
+			case 5 -> "토";
+			case 6 -> "일";
+			default -> throw new IllegalArgumentException("요일 범위를 벗어났습니다.");
+		};
+	}
+
+	private double percentage(int count, int total) {
+		if (total == 0) return 0;
+		return Math.round((count * 1000.0) / total) / 10.0;
 	}
 
 	private UpcomingSalesActionResponse toUpcomingResponse(
