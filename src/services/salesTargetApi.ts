@@ -13,6 +13,8 @@ export type SalesTarget = {
   status: SalesStatus;
   memo: string;
   registeredAt: string;
+  sourceType?: string;
+  sourceId?: string;
 };
 
 export type CreateSalesTargetRequest = {
@@ -22,6 +24,8 @@ export type CreateSalesTargetRequest = {
   address: string;
   latitude: number;
   longitude: number;
+  sourceType?: 'PUBLIC_STORE' | 'RESTAURANT_LICENSE';
+  sourceId?: string;
 };
 
 export type UpdateSalesTargetRequest = {

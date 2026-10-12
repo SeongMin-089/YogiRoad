@@ -4,6 +4,8 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record SalesTargetCreateRequest(
 		@NotBlank(message = "storeId는 필수입니다.")
@@ -23,6 +25,12 @@ public record SalesTargetCreateRequest(
 		@NotNull(message = "longitude는 필수입니다.")
 		@DecimalMin(value = "-180.0", message = "longitude는 -180 이상이어야 합니다.")
 		@DecimalMax(value = "180.0", message = "longitude는 180 이하여야 합니다.")
-		Double longitude
+		Double longitude,
+
+		@Pattern(regexp = "PUBLIC_STORE|RESTAURANT_LICENSE", message = "sourceType이 올바르지 않습니다.")
+		String sourceType,
+
+		@Size(max = 200, message = "sourceId는 200자 이하여야 합니다.")
+		String sourceId
 ) {
 }

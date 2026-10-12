@@ -148,7 +148,9 @@ class SalesInsightsServiceTests {
 				127.0,
 				status,
 				"",
-				Instant.parse(registeredAt)
+				Instant.parse(registeredAt),
+				null,
+				null
 		);
 	}
 

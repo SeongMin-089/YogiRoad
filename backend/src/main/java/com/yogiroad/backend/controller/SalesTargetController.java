@@ -3,8 +3,10 @@ package com.yogiroad.backend.controller;
 import com.yogiroad.backend.auth.JwtAuthenticationFilter;
 import com.yogiroad.backend.dto.SalesTargetCreateRequest;
 import com.yogiroad.backend.dto.SalesTargetUpdateRequest;
+import com.yogiroad.backend.dto.RestaurantLicenseCandidate;
 import com.yogiroad.backend.model.SalesTarget;
 import com.yogiroad.backend.service.SalesTargetService;
+import com.yogiroad.backend.service.RestaurantLicenseService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -18,15 +20,28 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/sales-targets")
 public class SalesTargetController {
 
 	private final SalesTargetService salesTargetService;
+	private final RestaurantLicenseService restaurantLicenseService;
 
-	public SalesTargetController(SalesTargetService salesTargetService) {
+	public SalesTargetController(
+			SalesTargetService salesTargetService,
+			RestaurantLicenseService restaurantLicenseService
+	) {
 		this.salesTargetService = salesTargetService;
+		this.restaurantLicenseService = restaurantLicenseService;
+	}
+
+	@GetMapping("/license-candidates")
+	public List<RestaurantLicenseCandidate> findLicenseCandidates(
+			@RequestParam String region
+	) {
+		return restaurantLicenseService.findRecentCandidates(region);
 	}
 
 	@PostMapping

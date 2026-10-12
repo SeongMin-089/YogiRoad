@@ -14,9 +14,11 @@ export type KakaoMapStore = {
   indsSclsNm?: string;
   rdnmAdr?: string;
   lnoAdr?: string;
-  lat: number;
-  lon: number;
+  lat?: number;
+  lon?: number;
   salesStatus?: SalesStatus;
+  markerKind?: 'standard' | 'licenseCandidate';
+  geocodeAddress?: string;
 };
 
 export type KakaoPlaceSearchResult = {
@@ -37,8 +39,8 @@ type Props = {
   longitude?: number;
   stores?: KakaoMapStore[];
   regionSearchRequest?: RegionSearchRequest | null;
-  onStorePress?: (storeId: string) => void;
-  onCenterIdle?: (center: MapCenter, userInitiated: boolean) => void;
+  onStorePress?: (storeId: string, coordinate?: MapCenter) => void;
+  onCenterIdle?: (center: MapCenter, userInitiated: boolean, regionName?: string) => void;
   onRegionSearchResult?: (
     requestId: number,
     results: KakaoPlaceSearchResult[],
@@ -111,9 +113,11 @@ function createMapHtml(apiKey: string, center: MapCenter, stores: KakaoMapStore[
                 zoomable: true
               });
               var markerEntries = [];
+              var markerUpdateVersion = 0;
               var markerImageCache = Object.create(null);
               var userInteraction = false;
               var places = new kakao.maps.services.Places();
+              var geocoder = new kakao.maps.services.Geocoder();
               var clusterer = kakao.maps.MarkerClusterer ? new kakao.maps.MarkerClusterer({
                 map: map,
                 averageCenter: true,
@@ -129,9 +133,23 @@ function createMapHtml(apiKey: string, center: MapCenter, stores: KakaoMapStore[
                 if (status === '거절') return '#475569';
                 return '${colors.primary}';
               }
-              function markerImage(status) {
-                var key = status || 'unregistered';
+              function markerImage(status, kind) {
+                var key = (kind || 'standard') + ':' + (status || 'unregistered');
                 if (markerImageCache[key]) return markerImageCache[key];
+                if (kind === 'licenseCandidate') {
+                  var candidateSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="46" height="52" viewBox="0 0 46 52">' +
+                    '<path d="M23 8C14.2 8 7 15.2 7 24c0 11.7 16 27 16 27s16-15.3 16-27C39 15.2 31.8 8 23 8z" fill="#16A34A" stroke="#FFFFFF" stroke-width="2"/>' +
+                    '<circle cx="23" cy="24" r="5" fill="#FFFFFF"/>' +
+                    '<rect x="10" y="1" width="26" height="14" rx="7" fill="#065F46" stroke="#FFFFFF" stroke-width="1.5"/>' +
+                    '<text x="23" y="11" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="#FFFFFF">NEW</text>' +
+                    '</svg>';
+                  markerImageCache[key] = new kakao.maps.MarkerImage(
+                    'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(candidateSvg),
+                    new kakao.maps.Size(46, 52),
+                    { offset: new kakao.maps.Point(23, 51) }
+                  );
+                  return markerImageCache[key];
+                }
                 var fill = markerColor(status);
                 var centerFill = status ? '#FFFFFF' : '${colors.surface}';
                 var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="44" viewBox="0 0 34 44">' +
@@ -149,6 +167,7 @@ function createMapHtml(apiKey: string, center: MapCenter, stores: KakaoMapStore[
               }
 
               window.updateStoreMarkers = function (nextStores) {
+                var updateVersion = ++markerUpdateVersion;
                 markerEntries.forEach(function (entry) {
                   kakao.maps.event.removeListener(entry.marker, 'click', entry.onClick);
                   entry.marker.setMap(null);
@@ -158,30 +177,40 @@ function createMapHtml(apiKey: string, center: MapCenter, stores: KakaoMapStore[
                 if (!Array.isArray(nextStores)) return;
 
                 var seen = Object.create(null);
-                var nextMarkers = [];
-                nextStores.forEach(function (store) {
-                  if (!store || typeof store.bizesId !== 'string' || !store.bizesId || seen[store.bizesId]) return;
-                  if (typeof store.lat !== 'number' || typeof store.lon !== 'number' ||
-                      !Number.isFinite(store.lat) || !Number.isFinite(store.lon) ||
-                      Math.abs(store.lat) > 90 || Math.abs(store.lon) > 180) return;
+                function addMarker(store, latitude, longitude) {
+                  if (updateVersion !== markerUpdateVersion) return;
+                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+                      Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
                   var marker;
                   try {
                     marker = new kakao.maps.Marker({
-                      position: new kakao.maps.LatLng(store.lat, store.lon),
+                      position: new kakao.maps.LatLng(latitude, longitude),
                       title: typeof store.bizesNm === 'string' ? store.bizesNm : '',
-                      image: markerImage(store.salesStatus)
+                      image: markerImage(store.salesStatus, store.markerKind)
                     });
-                    var onClick = function () { send('STORE_SELECTED', { storeId: store.bizesId }); };
+                    var onClick = function () {
+                      send('STORE_SELECTED', { storeId: store.bizesId, latitude: latitude, longitude: longitude });
+                    };
                     kakao.maps.event.addListener(marker, 'click', onClick);
                     markerEntries.push({ marker: marker, onClick: onClick });
-                    nextMarkers.push(marker);
-                    seen[store.bizesId] = true;
+                    if (clusterer) clusterer.addMarker(marker);
+                    else marker.setMap(map);
                   } catch (_) {
                     if (marker) marker.setMap(null);
                   }
+                }
+                nextStores.forEach(function (store) {
+                  if (!store || typeof store.bizesId !== 'string' || !store.bizesId || seen[store.bizesId]) return;
+                  seen[store.bizesId] = true;
+                  if (typeof store.lat === 'number' && typeof store.lon === 'number') {
+                    addMarker(store, store.lat, store.lon);
+                  } else if (store.markerKind === 'licenseCandidate' && typeof store.geocodeAddress === 'string' && store.geocodeAddress.trim()) {
+                    geocoder.addressSearch(store.geocodeAddress.trim(), function (results, status) {
+                      if (updateVersion !== markerUpdateVersion || status !== kakao.maps.services.Status.OK || !results || !results[0]) return;
+                      addMarker(store, Number(results[0].y), Number(results[0].x));
+                    });
+                  }
                 });
-                if (clusterer) clusterer.addMarkers(nextMarkers);
-                else nextMarkers.forEach(function (marker) { marker.setMap(map); });
               };
 
               window.moveMapCenter = function (latitude, longitude) {
@@ -223,10 +252,21 @@ function createMapHtml(apiKey: string, center: MapCenter, stores: KakaoMapStore[
               kakao.maps.event.addListener(map, 'zoom_start', function () { userInteraction = true; });
               kakao.maps.event.addListener(map, 'idle', function () {
                 var mapCenter = map.getCenter();
-                send('CENTER_IDLE', {
-                  latitude: mapCenter.getLat(),
-                  longitude: mapCenter.getLng(),
-                  userInitiated: userInteraction
+                var initiated = userInteraction;
+                var latitude = mapCenter.getLat();
+                var longitude = mapCenter.getLng();
+                geocoder.coord2RegionCode(longitude, latitude, function (results, status) {
+                  var regionName = '';
+                  if (status === kakao.maps.services.Status.OK && Array.isArray(results)) {
+                    var region = results.find(function (item) { return item.region_type === 'H'; }) || results[0];
+                    if (region) regionName = [region.region_1depth_name, region.region_2depth_name].filter(Boolean).join(' ');
+                  }
+                  send('CENTER_IDLE', {
+                    latitude: latitude,
+                    longitude: longitude,
+                    userInitiated: initiated,
+                    regionName: regionName
+                  });
                 });
                 userInteraction = false;
               });
@@ -340,11 +380,20 @@ function MapWebView({
       if (message.type === 'MAP_READY') {
         setStatus(current => current === 'loading' ? 'ready' : current);
       } else if (message.type === 'STORE_SELECTED' && typeof message.storeId === 'string') {
-        if (stores.some(store => store.bizesId === message.storeId)) onStorePress?.(message.storeId);
+        if (stores.some(store => store.bizesId === message.storeId)) {
+          const coordinate = isCoordinate(message.latitude, message.longitude)
+            ? { latitude: message.latitude, longitude: message.longitude as number }
+            : undefined;
+          onStorePress?.(message.storeId, coordinate);
+        }
       } else if (message.type === 'CENTER_IDLE' && isCoordinate(message.latitude, message.longitude)) {
         const center = { latitude: message.latitude, longitude: message.longitude as number };
         observedCenter.current = center;
-        onCenterIdle?.(center, message.userInitiated === true);
+        onCenterIdle?.(
+          center,
+          message.userInitiated === true,
+          typeof message.regionName === 'string' ? message.regionName : undefined,
+        );
       } else if (message.type === 'REGION_RESULTS' && typeof message.requestId === 'number') {
         const resultStatus: RegionSearchStatus = message.status === 'ok' || message.status === 'zero'
           ? message.status : 'error';

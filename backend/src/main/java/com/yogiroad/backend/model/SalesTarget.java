@@ -12,6 +12,8 @@ public record SalesTarget(
 		Double longitude,
 		SalesStatus status,
 		String memo,
-		Instant registeredAt
+		Instant registeredAt,
+		String sourceType,
+		String sourceId
 ) {
 }

@@ -38,6 +38,21 @@ public class SalesTargetService {
 	}
 
 	public SalesTarget register(String userId, SalesTargetCreateRequest request) {
+		if ("RESTAURANT_LICENSE".equals(request.sourceType())) {
+			if (request.sourceId() == null || request.sourceId().isBlank()) {
+				throw new IllegalArgumentException("인허가 관리번호가 필요합니다.");
+			}
+			QuerySnapshot existingSource = await(
+					firestore.collection(COLLECTION_NAME)
+							.whereEqualTo("userId", userId)
+							.whereEqualTo("sourceType", request.sourceType())
+							.whereEqualTo("sourceId", request.sourceId())
+							.limit(1)
+							.get(),
+					"영업 대상 중복 확인 중 오류가 발생했습니다."
+			);
+			if (!existingSource.isEmpty()) throw new DuplicateSalesTargetException();
+		}
 		SalesTarget salesTarget = new SalesTarget(
 				userId,
 				request.storeId(),
@@ -48,7 +63,9 @@ public class SalesTargetService {
 				request.longitude(),
 				SalesStatus.미방문,
 				"",
-				Instant.now()
+				Instant.now(),
+				request.sourceType(),
+				request.sourceId()
 		);
 
 		DocumentReference document = targetDocument(userId, salesTarget.storeId());
@@ -135,6 +152,12 @@ public class SalesTargetService {
 		data.put("status", salesTarget.status().name());
 		data.put("memo", salesTarget.memo());
 		data.put("registeredAt", toTimestamp(salesTarget.registeredAt()));
+		if (salesTarget.sourceType() != null && !salesTarget.sourceType().isBlank()) {
+			data.put("sourceType", salesTarget.sourceType());
+		}
+		if (salesTarget.sourceId() != null && !salesTarget.sourceId().isBlank()) {
+			data.put("sourceId", salesTarget.sourceId());
+		}
 		return data;
 	}
 
@@ -158,7 +181,9 @@ public class SalesTargetService {
 					document.getDouble("longitude"),
 					SalesStatus.valueOf(status),
 					document.getString("memo"),
-					registeredAt.toSqlTimestamp().toInstant()
+					registeredAt.toSqlTimestamp().toInstant(),
+					document.getString("sourceType"),
+					document.getString("sourceId")
 			);
 		} catch (RuntimeException exception) {
 			throw new FirestoreOperationException("영업 대상 데이터를 읽는 중 오류가 발생했습니다.", exception);

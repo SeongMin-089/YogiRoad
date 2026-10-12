@@ -44,6 +44,12 @@ public class GlobalExceptionHandler {
 				.body(new ErrorResponse(exception.getMessage()));
 	}
 
+	@ExceptionHandler(RestaurantLicenseApiException.class)
+	public ResponseEntity<ErrorResponse> handleRestaurantLicenseApi(RestaurantLicenseApiException exception) {
+		return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+				.body(new ErrorResponse(exception.getMessage()));
+	}
+
 	@ExceptionHandler({HttpMessageNotReadableException.class, IllegalArgumentException.class})
 	public ResponseEntity<ErrorResponse> handleBadRequest(Exception exception) {
 		return ResponseEntity.badRequest()

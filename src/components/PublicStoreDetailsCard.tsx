@@ -2,12 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { colors } from '../constants/colors';
 import type { PublicDataStore } from '../services/publicDataApi';
+import type { RestaurantLicenseCandidate } from '../services/restaurantLicenseApi';
 import type { SalesStatus } from '../types/sales';
 import PrimaryButton from './PrimaryButton';
 import StatusBadge from './StatusBadge';
 
 type Props = {
   store: PublicDataStore;
+  licenseCandidate?: RestaurantLicenseCandidate;
   status?: SalesStatus;
   registering?: boolean;
   loadingRegistrationStatus?: boolean;
@@ -21,6 +23,7 @@ function text(value: unknown): string {
 
 export default function PublicStoreDetailsCard({
   store,
+  licenseCandidate,
   status,
   registering = false,
   loadingRegistrationStatus = false,
@@ -28,7 +31,7 @@ export default function PublicStoreDetailsCard({
   onClose,
 }: Props) {
   const { height } = useWindowDimensions();
-  const category = text(store.indsMclsNm) || text(store.indsSclsNm);
+  const category = text(licenseCandidate?.businessType) || text(store.indsMclsNm) || text(store.indsSclsNm);
   const subcategory = text(store.indsSclsNm);
   const name = text(store.bizesNm);
   const branch = text(store.brchNm);
@@ -41,12 +44,17 @@ export default function PublicStoreDetailsCard({
     { label: '건물명', value: text(store.bldNm) },
     { label: '층', value: text(store.flrNo) },
     { label: '지역', value: region },
-    { label: '상가업소번호', value: text(store.bizesId) },
+    { label: '인허가일', value: text(licenseCandidate?.licenseDate) },
+    { label: '영업상태', value: text(licenseCandidate?.statusName) },
+    { label: '전화번호', value: text(licenseCandidate?.telephone) },
+    { label: licenseCandidate ? '인허가 관리번호' : '상가업소번호', value: licenseCandidate
+      ? text(licenseCandidate.managementNumber) : text(store.bizesId) },
   ].filter(row => row.value);
 
   return <View style={[styles.sheet, { height: height * 0.38 }]}>
     <View style={styles.top}>
       <View style={styles.badges}>
+        {licenseCandidate ? <View style={styles.newCandidate}><Text style={styles.newCandidateText}>신규 인허가 후보</Text></View> : null}
         {category ? <View style={styles.category}><Text style={styles.categoryText}>{category}</Text></View> : null}
         {status ? <StatusBadge status={status} /> : null}
       </View>
@@ -87,6 +95,8 @@ const styles = StyleSheet.create({
   badges: { flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   category: { backgroundColor: colors.surface, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
   categoryText: { fontSize: 12, fontWeight: '600', color: colors.primaryDark },
+  newCandidate: { backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
+  newCandidateText: { fontSize: 12, fontWeight: '700', color: '#166534' },
   close: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1 },
   content: { paddingHorizontal: 24, paddingBottom: 16, gap: 8 },
