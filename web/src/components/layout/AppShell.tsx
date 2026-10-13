@@ -3,6 +3,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { BrandMark } from '../BrandMark';
 import { Icon } from '../Icon';
 import { navigationItems } from '../../config/navigation';
+import { NotificationProvider } from '../../notifications/NotificationContext';
+import { NotificationBell } from '../notifications/NotificationBell';
 import styles from './AppShell.module.scss';
 
 function UserAvatar() {
@@ -18,9 +20,9 @@ export function AppShell() {
   const { user, profile } = useAuth();
 
   return (
-    <div className={styles.shell}>
+    <NotificationProvider><div className={styles.shell}>
       <aside className={styles.sidebar}>
-        <BrandMark />
+        <div className={styles.brandRow}><BrandMark /><NotificationBell /></div>
         <nav className={styles.desktopNav} aria-label="주요 메뉴">
           {navigationItems.map(item => (
             <NavLink
@@ -46,7 +48,10 @@ export function AppShell() {
       <div className={styles.workspace}>
         <header className={styles.mobileHeader}>
           <BrandMark />
-          <NavLink to="/my" aria-label="마이 페이지"><UserAvatar /></NavLink>
+          <div className={styles.mobileActions}>
+            <NotificationBell />
+            <NavLink to="/my" aria-label="마이 페이지"><UserAvatar /></NavLink>
+          </div>
         </header>
         <main className={styles.main}>
           <Outlet />
@@ -66,6 +71,6 @@ export function AppShell() {
           </NavLink>
         ))}
       </nav>
-    </div>
+    </div></NotificationProvider>
   );
 }

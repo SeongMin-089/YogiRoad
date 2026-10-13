@@ -112,12 +112,50 @@ function candidateAsPublicStore(candidate: RestaurantLicenseCandidate, coordinat
   };
 }
 
+function notificationCandidateFromSearch(search: string): RestaurantLicenseCandidate | null {
+  const params = new URLSearchParams(search);
+  const managementNumber = params.get('managementNumber')?.trim() ?? '';
+  const storeName = params.get('storeName')?.trim() ?? '';
+  if (!managementNumber || !storeName) return null;
+  const latitude = Number(params.get('latitude'));
+  const longitude = Number(params.get('longitude'));
+  const hasCoordinate = params.has('latitude') && params.has('longitude')
+    && Number.isFinite(latitude) && Math.abs(latitude) <= 90
+    && Number.isFinite(longitude) && Math.abs(longitude) <= 180;
+  const roadAddress = params.get('roadAddress')?.trim() ?? '';
+  const lotNumberAddress = params.get('lotNumberAddress')?.trim() ?? '';
+  return {
+    managementNumber,
+    storeId: `license:${managementNumber}`,
+    storeName,
+    licenseDate: params.get('licenseDate')?.trim() ?? '',
+    statusCode: '01',
+    statusName: '영업/정상',
+    businessType: params.get('businessType')?.trim() ?? '',
+    address: params.get('address')?.trim() || roadAddress || lotNumberAddress,
+    roadAddress,
+    lotNumberAddress,
+    telephone: '',
+    latitude: hasCoordinate ? latitude : null,
+    longitude: hasCoordinate ? longitude : null,
+    coordinateSource: hasCoordinate ? 'EPSG_5174' : 'ADDRESS_REQUIRED',
+  };
+}
+
 export function MapPage() {
+  const initialNotificationCandidate = useMemo(() => notificationCandidateFromSearch(window.location.search), []);
   const initialManagedRegion = useMemo(() => new URLSearchParams(window.location.search).get('region')?.trim() ?? '', []);
+  const initialCenter = useMemo<MapCenter>(() => {
+    const latitude = initialNotificationCandidate?.latitude;
+    const longitude = initialNotificationCandidate?.longitude;
+    return typeof latitude === 'number' && typeof longitude === 'number'
+      ? { latitude, longitude }
+      : DEFAULT_CENTER;
+  }, [initialNotificationCandidate]);
   const [storeQuery, setStoreQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'전체' | SalesStatus>('전체');
   const [discoveryFilter, setDiscoveryFilter] = useState<DiscoveryFilter>('전체 음식점');
-  const [mapCenter, setMapCenter] = useState<MapCenter>(DEFAULT_CENTER);
+  const [mapCenter, setMapCenter] = useState<MapCenter>(initialCenter);
   const [needsAreaSearch, setNeedsAreaSearch] = useState(false);
   const [regionQuery, setRegionQuery] = useState(initialManagedRegion);
   const [regionSearchRequest, setRegionSearchRequest] = useState<RegionSearchRequest | null>(null);
@@ -128,10 +166,14 @@ export function MapPage() {
   const [stores, setStores] = useState<PublicDataStore[]>([]);
   const [loadingStores, setLoadingStores] = useState(true);
   const [storeError, setStoreError] = useState<string | null>(null);
-  const [licenseCandidates, setLicenseCandidates] = useState<RestaurantLicenseCandidate[]>([]);
+  const [licenseCandidates, setLicenseCandidates] = useState<RestaurantLicenseCandidate[]>(
+    initialNotificationCandidate ? [initialNotificationCandidate] : [],
+  );
   const [loadingLicenseCandidates, setLoadingLicenseCandidates] = useState(true);
   const [licenseCandidateError, setLicenseCandidateError] = useState<string | null>(null);
-  const [selectedMapStore, setSelectedMapStore] = useState<SelectedMapStore | null>(null);
+  const [selectedMapStore, setSelectedMapStore] = useState<SelectedMapStore | null>(initialNotificationCandidate ? {
+    store: candidateAsPublicStore(initialNotificationCandidate), licenseCandidate: initialNotificationCandidate,
+  } : null);
   const [salesTargets, setSalesTargets] = useState<SalesTarget[]>([]);
   const [loadingSalesTargets, setLoadingSalesTargets] = useState(true);
   const [salesTargetError, setSalesTargetError] = useState<string | null>(null);
@@ -141,7 +183,11 @@ export function MapPage() {
   const licenseRequestVersion = useRef(0);
   const activeLicenseRequest = useRef<{ key: string; controller: AbortController } | null>(null);
   const regionRequestId = useRef(0);
-  const managedRegionRequestRef = useRef(initialManagedRegion);
+  const preserveInitialSelectionRef = useRef(Boolean(initialNotificationCandidate));
+  const managedRegionRequestRef = useRef(initialNotificationCandidate
+    && (initialNotificationCandidate.latitude === null || initialNotificationCandidate.longitude === null)
+    ? initialNotificationCandidate.address
+    : initialNotificationCandidate ? '' : initialManagedRegion);
 
   const loadStores = useCallback(async (center: MapCenter) => {
     const requestKey = [center.latitude.toFixed(6), center.longitude.toFixed(6), SEARCH_RADIUS,
@@ -155,7 +201,8 @@ export function MapPage() {
     setLoadingStores(true);
     setStoreError(null);
     setNeedsAreaSearch(false);
-    setSelectedMapStore(null);
+    if (preserveInitialSelectionRef.current) preserveInitialSelectionRef.current = false;
+    else setSelectedMapStore(null);
     try {
       const result = await fetchRestaurantsInRadius({
         latitude: center.latitude,
@@ -199,7 +246,12 @@ export function MapPage() {
     setLicenseCandidateError(null);
     try {
       const result = await getRestaurantLicenseCandidates(cleanRegion, controller.signal);
-      if (version === licenseRequestVersion.current) setLicenseCandidates(result);
+      if (version === licenseRequestVersion.current) setLicenseCandidates(
+        initialNotificationCandidate
+          && !result.some(candidate => candidate.managementNumber === initialNotificationCandidate.managementNumber)
+          ? [initialNotificationCandidate, ...result]
+          : result,
+      );
     } catch (error) {
       if (version !== licenseRequestVersion.current || controller.signal.aborted) return;
       setLicenseCandidateError(error instanceof ApiError
@@ -211,11 +263,15 @@ export function MapPage() {
         if (activeLicenseRequest.current?.controller === controller) activeLicenseRequest.current = null;
       }
     }
-  }, []);
+  }, [initialNotificationCandidate]);
 
   useEffect(() => {
-    void loadStores(DEFAULT_CENTER);
-    void loadLicenseCandidates('경기도 남양주시');
+    void loadStores(initialCenter);
+    void loadLicenseCandidates(initialManagedRegion || '경기도 남양주시');
+    if (initialNotificationCandidate) setSelectedMapStore({
+      store: candidateAsPublicStore(initialNotificationCandidate),
+      licenseCandidate: initialNotificationCandidate,
+    });
     let active = true;
     setLoadingSalesTargets(true);
     void getSalesTargets().then(result => {
@@ -237,7 +293,7 @@ export function MapPage() {
       licenseRequestVersion.current += 1;
       activeLicenseRequest.current?.controller.abort();
     };
-  }, [loadLicenseCandidates, loadStores]);
+  }, [initialCenter, initialManagedRegion, initialNotificationCandidate, loadLicenseCandidates, loadStores]);
 
   useEffect(() => {
     if (!managedRegionRequestRef.current) return;
@@ -303,7 +359,8 @@ export function MapPage() {
         salesStatus: association
           ? licenseTargetStatuses.get(association.candidate.managementNumber) ?? salesTargetStatuses.get(storeId)
           : salesTargetStatuses.get(storeId),
-        markerKind: association ? 'licenseCandidate' : 'standard',
+        markerKind: association?.candidate.managementNumber === initialNotificationCandidate?.managementNumber
+          ? 'highlighted' : association ? 'licenseCandidate' : 'standard',
       });
       seen.add(storeId);
     }
@@ -325,19 +382,24 @@ export function MapPage() {
         lat: candidate.latitude ?? undefined,
         lon: candidate.longitude ?? undefined,
         geocodeAddress: candidate.address,
-        markerKind: 'licenseCandidate',
+        markerKind: candidate.managementNumber === initialNotificationCandidate?.managementNumber
+          ? 'highlighted' : 'licenseCandidate',
         salesStatus: registeredStatus,
       });
       seen.add(association.markerId);
     }
     return result;
-  }, [candidateAssociations, licenseTargetStatuses, salesTargetStatuses, statusFilter, storeQuery, visibleStores]);
+  }, [candidateAssociations, initialNotificationCandidate, licenseTargetStatuses, salesTargetStatuses, statusFilter, storeQuery, visibleStores]);
 
   const selectedStoreId = trimmed(selectedMapStore?.store.bizesId);
   const selectedStoreStatus = selectedMapStore?.licenseCandidate
     ? licenseTargetStatuses.get(selectedMapStore.licenseCandidate.managementNumber)
       ?? salesTargetStatuses.get(selectedStoreId)
     : salesTargetStatuses.get(selectedStoreId);
+  const notificationLocationUnavailable = initialNotificationCandidate
+    && initialNotificationCandidate.latitude === null
+    && initialNotificationCandidate.longitude === null
+    && (!initialNotificationCandidate.address || regionSearchStatus === 'error' || regionSearchStatus === 'zero');
 
   function submitRegionSearch(event?: FormEvent) {
     event?.preventDefault();
@@ -358,6 +420,10 @@ export function MapPage() {
     if (managedRegionRequestRef.current && resultStatus === 'ok' && results[0]) {
       managedRegionRequestRef.current = '';
       selectRegion(results[0]);
+      if (initialNotificationCandidate) setSelectedMapStore({
+        store: candidateAsPublicStore(initialNotificationCandidate),
+        licenseCandidate: initialNotificationCandidate,
+      });
       return;
     }
     managedRegionRequestRef.current = '';
@@ -526,6 +592,9 @@ export function MapPage() {
         <p role="status">{loadingLicenseCandidates
           ? '최근 30일 신규 인허가 후보를 확인하는 중...'
           : licenseCandidateError ?? `신규 인허가 후보 ${licenseCandidates.length}곳`}</p>
+        {notificationLocationUnavailable && <p className={styles.error} role="alert">
+          이 알림의 위치를 확인하지 못했습니다. 임의 위치는 표시하지 않으며 음식점 상세정보만 제공합니다.
+        </p>}
         <div className={styles.legend}>
           <span><i className={styles.unregisteredDot} />미등록</span>
           <span><i className={styles.registeredDot} />등록됨 · 상태별 색상</span>

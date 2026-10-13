@@ -18,6 +18,22 @@ public final class FirestoreDocumentIds {
 		return sha256(userId);
 	}
 
+	public static String notificationUser(String userId) {
+		return sha256(userId);
+	}
+
+	public static String notification(String userId, String type, String managementNumber) {
+		return sha256(userId + "\u0000" + type + "\u0000" + managementNumber);
+	}
+
+	public static String discoveryRegion(String regionKey) {
+		return sha256(regionKey);
+	}
+
+	public static String discoveryItem(String managementNumber) {
+		return sha256(managementNumber);
+	}
+
 	private static String sha256(String value) {
 		try {
 			MessageDigest digest = MessageDigest.getInstance("SHA-256");

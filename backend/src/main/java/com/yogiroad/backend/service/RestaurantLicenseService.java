@@ -107,7 +107,7 @@ public class RestaurantLicenseService {
 			synchronized (lock) {
 				cached = cache.get(cacheKey);
 				if (cached != null && cached.expiresAt().isAfter(clock.instant())) return cached.candidates();
-				List<RestaurantLicenseCandidate> candidates = loadCandidates(cleanRegion, today);
+				List<RestaurantLicenseCandidate> candidates = loadCandidates(cleanRegion, today).candidates();
 				putCache(cacheKey, candidates);
 				return candidates;
 			}
@@ -116,30 +116,47 @@ public class RestaurantLicenseService {
 		}
 	}
 
-	private List<RestaurantLicenseCandidate> loadCandidates(String region, LocalDate today) {
+	public ScanResult scanRecentCandidates(String region) {
+		String cleanRegion = normalizeRegionQuery(region);
+		return loadCandidates(cleanRegion, LocalDate.now(clock.withZone(SEOUL)));
+	}
+
+	private ScanResult loadCandidates(String region, LocalDate today) {
 		validateConfiguration();
 		LocalDate startDate = today.minusDays(29);
 		Map<String, RestaurantLicenseCandidate> deduplicated = new LinkedHashMap<>();
+		boolean complete = true;
+		int requestCount = 0;
 		for (String addressField : List.of("ROAD_NM_ADDR", "LOTNO_ADDR")) {
-			for (RawRestaurant row : fetchAllPages(region, addressField, startDate)) {
+			PagedRows pageRows = fetchAllPages(region, addressField, startDate);
+			complete &= pageRows.complete();
+			requestCount += pageRows.requestCount();
+			for (RawRestaurant row : pageRows.items()) {
 				RestaurantLicenseCandidate candidate = toCandidate(row, region, startDate, today);
 				if (candidate != null) deduplicated.putIfAbsent(candidate.managementNumber(), candidate);
 			}
 		}
-		return deduplicated.values().stream()
+		List<RestaurantLicenseCandidate> candidates = deduplicated.values().stream()
 				.sorted(Comparator.comparing(RestaurantLicenseCandidate::licenseDate).reversed()
 						.thenComparing(RestaurantLicenseCandidate::storeName))
 				.toList();
+		return new ScanResult(candidates, complete, requestCount, startDate, today);
 	}
 
-	private List<RawRestaurant> fetchAllPages(String region, String addressField, LocalDate startDate) {
+	private PagedRows fetchAllPages(String region, String addressField, LocalDate startDate) {
 		List<RawRestaurant> result = new ArrayList<>();
+		boolean complete = false;
+		int requestCount = 0;
 		for (int pageNo = 1; pageNo <= MAX_PAGES_PER_ADDRESS_FIELD; pageNo++) {
 			RawPage page = fetchPage(region, addressField, startDate, pageNo);
+			requestCount += 1;
 			result.addAll(page.items());
-			if (page.items().isEmpty() || (long) pageNo * PAGE_SIZE >= page.totalCount()) break;
+			if (page.items().isEmpty() || (long) pageNo * PAGE_SIZE >= page.totalCount()) {
+				complete = true;
+				break;
+			}
 		}
-		return result;
+		return new PagedRows(result, complete, requestCount);
 	}
 
 	private RawPage fetchPage(String region, String addressField, LocalDate startDate, int pageNo) {
@@ -331,10 +348,25 @@ public class RestaurantLicenseService {
 	record Wgs84Coordinate(double latitude, double longitude) {
 	}
 
+	public record ScanResult(
+			List<RestaurantLicenseCandidate> candidates,
+			boolean complete,
+			int requestCount,
+			LocalDate windowStart,
+			LocalDate windowEnd
+	) {
+		public ScanResult {
+			candidates = List.copyOf(candidates);
+		}
+	}
+
 	private record CacheEntry(List<RestaurantLicenseCandidate> candidates, Instant expiresAt) {
 	}
 
 	private record RawPage(long totalCount, List<RawRestaurant> items) {
+	}
+
+	private record PagedRows(List<RawRestaurant> items, boolean complete, int requestCount) {
 	}
 
 	private record RawRestaurant(

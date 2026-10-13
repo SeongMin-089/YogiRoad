@@ -26,7 +26,8 @@ public class GlobalExceptionHandler {
 				.body(new ErrorResponse(exception.getMessage()));
 	}
 
-	@ExceptionHandler({SalesTargetNotFoundException.class, SalesActivityNotFoundException.class})
+	@ExceptionHandler({SalesTargetNotFoundException.class, SalesActivityNotFoundException.class,
+			NotificationNotFoundException.class})
 	public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException exception) {
 		return ResponseEntity.status(HttpStatus.NOT_FOUND)
 				.body(new ErrorResponse(exception.getMessage()));

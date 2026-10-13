@@ -1,6 +1,7 @@
 .shell { min-height: 100dvh; background: var(--color-app-background); }
 
 .sidebar { display: none; }
+.brandRow { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 
 .workspace { min-width: 0; }
 
@@ -31,6 +32,7 @@
 }
 
 .avatarFallback svg { width: 1.2rem; }
+.mobileActions { display: flex; align-items: center; gap: 0.65rem; }
 
 .main {
   width: min(100%, 78rem);

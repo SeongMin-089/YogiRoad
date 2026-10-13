@@ -102,12 +102,14 @@ function markerImage(
   const cached = cache.get(key);
   if (cached) return cached;
 
-  if (kind === 'licenseCandidate') {
+  if (kind === 'licenseCandidate' || kind === 'highlighted') {
+    const fill = kind === 'highlighted' ? '#FF5A5F' : '#16A34A';
+    const label = kind === 'highlighted' ? '알림' : 'NEW';
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="46" height="52" viewBox="0 0 46 52">'
-      + '<path d="M23 8C14.2 8 7 15.2 7 24c0 11.7 16 27 16 27s16-15.3 16-27C39 15.2 31.8 8 23 8z" fill="#16A34A" stroke="#FFFFFF" stroke-width="2"/>'
+      + `<path d="M23 8C14.2 8 7 15.2 7 24c0 11.7 16 27 16 27s16-15.3 16-27C39 15.2 31.8 8 23 8z" fill="${fill}" stroke="#FFFFFF" stroke-width="2"/>`
       + '<circle cx="23" cy="24" r="5" fill="#FFFFFF"/>'
-      + '<rect x="10" y="1" width="26" height="14" rx="7" fill="#065F46" stroke="#FFFFFF" stroke-width="1.5"/>'
-      + '<text x="23" y="11" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="#FFFFFF">NEW</text>'
+      + `<rect x="10" y="1" width="26" height="14" rx="7" fill="${kind === 'highlighted' ? '#B4232A' : '#065F46'}" stroke="#FFFFFF" stroke-width="1.5"/>`
+      + `<text x="23" y="11" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="#FFFFFF">${label}</text>`
       + '</svg>';
     const image = new maps.MarkerImage(
       `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,

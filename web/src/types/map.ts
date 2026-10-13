@@ -27,7 +27,7 @@ export type KakaoMapStore = PublicDataStore & {
   bizesId: string;
   bizesNm: string;
   salesStatus?: SalesStatus;
-  markerKind?: 'standard' | 'licenseCandidate';
+  markerKind?: 'standard' | 'licenseCandidate' | 'highlighted';
   geocodeAddress?: string;
 };
 

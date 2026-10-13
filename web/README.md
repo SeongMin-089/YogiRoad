@@ -1,7 +1,7 @@
 # YogiRoad Web
 
 React + Vite + TypeScript + SCSS로 구성한 YogiRoad 웹 마이그레이션 프로젝트입니다.
-기존 Expo 앱과 Spring Boot 백엔드는 변경하지 않습니다.
+기존 Expo 앱과 같은 Spring Boot 백엔드를 사용합니다.
 
 ## 실행
 
@@ -31,6 +31,8 @@ npm run build
 - 지역 검색, 지도 이동 후 재조회, 일반·신규 인허가 후보 마커와 상세 카드
 - 기존 영업 대상 등록 API 연결
 - 영업관리와 대시보드 페이지 진입점
+- 담당 지역 신규 인허가 알림함, 읽음 처리, 30초 주기의 읽지 않은 알림 배지
+- 알림 음식점의 지도 이동, 강조 마커, 상세정보와 기존 영업 대상 등록 연결
 
 일반 음식점 조회는 브라우저에 공공데이터 키를 노출하지 않도록 Spring Boot의
 `/api/sales-targets/public-stores` 프록시를 사용합니다. 백엔드 `backend/.env`에

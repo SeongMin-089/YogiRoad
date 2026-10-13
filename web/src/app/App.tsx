@@ -7,6 +7,7 @@ import { LoginPage } from '../pages/LoginPage';
 import { MapPage } from '../pages/MapPage';
 import { MyPage } from '../pages/MyPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { NotificationsPage } from '../pages/NotificationsPage';
 import { SalesPage } from '../pages/SalesPage';
 
 function LoadingScreen() {
@@ -43,6 +44,7 @@ export function App() {
         <Route path="sales" element={<SalesPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="my" element={<MyPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
