@@ -12,6 +12,7 @@ import com.yogiroad.backend.dto.RestaurantLicenseCandidate;
 import com.yogiroad.backend.exception.FirestoreOperationException;
 import com.yogiroad.backend.exception.RestaurantLicenseApiException;
 import com.yogiroad.backend.util.FirestoreDocumentIds;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -22,6 +23,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +52,8 @@ public class RestaurantDiscoveryService {
 	private final int maxRegionsPerRun;
 	private final long pollIntervalMs;
 	private final Duration lockTtl;
+	private final Clock clock;
+	private final Object leaseMutationMonitor = new Object();
 	private final String instanceId = UUID.randomUUID().toString();
 
 	public RestaurantDiscoveryService(
@@ -56,12 +64,27 @@ public class RestaurantDiscoveryService {
 			@Value("${yogiroad.notifications.poll-interval-ms:600000}") long pollIntervalMs,
 			@Value("${yogiroad.notifications.lock-ttl:PT15M}") Duration lockTtl
 	) {
+		this(firestore, restaurantLicenseService, notificationService, maxRegionsPerRun,
+				pollIntervalMs, lockTtl, Clock.systemUTC());
+	}
+
+	RestaurantDiscoveryService(
+			Firestore firestore,
+			RestaurantLicenseService restaurantLicenseService,
+			NotificationService notificationService,
+			int maxRegionsPerRun,
+			long pollIntervalMs,
+			Duration lockTtl,
+			Clock clock
+	) {
 		this.firestore = firestore;
 		this.restaurantLicenseService = restaurantLicenseService;
 		this.notificationService = notificationService;
 		this.maxRegionsPerRun = Math.max(1, maxRegionsPerRun);
 		this.pollIntervalMs = Math.max(1, pollIntervalMs);
-		this.lockTtl = lockTtl;
+		this.lockTtl = lockTtl == null || lockTtl.isNegative() || lockTtl.isZero()
+				? Duration.ofMinutes(15) : lockTtl;
+		this.clock = clock;
 	}
 
 	@Scheduled(
@@ -73,25 +96,71 @@ public class RestaurantDiscoveryService {
 			log.info("신규 음식점 감지 작업을 다른 서버 인스턴스가 실행 중이므로 이번 주기를 건너뜁니다.");
 			return;
 		}
-		try {
+		try (LockHeartbeat heartbeat = new LockHeartbeat()) {
 			Map<String, RegionGroup> groups = loadRegionGroups();
 			if (groups.size() > maxRegionsPerRun) {
 				log.warn("담당 지역 {}개 중 설정 상한인 {}개만 이번 주기에 조회합니다.", groups.size(), maxRegionsPerRun);
 			}
 			List<RegionGroup> ordered = groups.values().stream()
 					.sorted(Comparator.comparing(RegionGroup::regionKey)).toList();
-			int processCount = Math.min(maxRegionsPerRun, ordered.size());
-			int start = ordered.isEmpty() ? 0 : Math.floorMod(
-					(Instant.now().toEpochMilli() / pollIntervalMs) * (long) maxRegionsPerRun,
-					ordered.size());
-			for (int offset = 0; offset < processCount; offset++) {
-				processSafely(ordered.get((start + offset) % ordered.size()));
+			long cycle = clock.instant().toEpochMilli() / pollIntervalMs;
+			for (RegionGroup group : rotatingWindow(ordered, maxRegionsPerRun, cycle)) {
+				if (!heartbeat.stillOwned() || !renewLock()) {
+					log.warn("신규 음식점 감지 잠금 소유권을 잃어 남은 지역 처리를 중단합니다.");
+					break;
+				}
+				processSafely(group);
 			}
 		} catch (RuntimeException exception) {
 			log.error("신규 음식점 자동 감지 주기를 완료하지 못했습니다.", exception);
 		} finally {
 			releaseLock();
 		}
+	}
+
+	private final class LockHeartbeat implements AutoCloseable {
+		private final AtomicBoolean stillOwned = new AtomicBoolean(true);
+		private final ScheduledExecutorService executor;
+		private final ScheduledFuture<?> task;
+
+		private LockHeartbeat() {
+			long delayMillis = Math.max(1_000, Math.min(60_000, lockTtl.toMillis() / 3));
+			executor = Executors.newSingleThreadScheduledExecutor(runnable -> {
+				Thread thread = new Thread(runnable, "restaurant-discovery-lock-heartbeat");
+				thread.setDaemon(true);
+				return thread;
+			});
+			task = executor.scheduleWithFixedDelay(() -> {
+				try {
+					if (!renewLockIfActive(stillOwned)) stillOwned.set(false);
+				} catch (RuntimeException exception) {
+					stillOwned.set(false);
+					log.error("신규 음식점 감지 잠금 갱신에 실패했습니다.", exception);
+				}
+			}, delayMillis, delayMillis, TimeUnit.MILLISECONDS);
+		}
+
+		private boolean stillOwned() {
+			return stillOwned.get();
+		}
+
+		@Override
+		public void close() {
+			stillOwned.set(false);
+			task.cancel(true);
+			executor.shutdownNow();
+		}
+	}
+
+	static <T> List<T> rotatingWindow(List<T> ordered, int maximum, long cycle) {
+		if (ordered.isEmpty() || maximum <= 0) return List.of();
+		int count = Math.min(maximum, ordered.size());
+		int start = Math.floorMod(cycle * (long) maximum, ordered.size());
+		List<T> selected = new ArrayList<>(count);
+		for (int offset = 0; offset < count; offset++) {
+			selected.add(ordered.get((start + offset) % ordered.size()));
+		}
+		return List.copyOf(selected);
 	}
 
 	private void processSafely(RegionGroup group) {
@@ -106,19 +175,13 @@ public class RestaurantDiscoveryService {
 		}
 	}
 
-	private void process(RegionGroup group) {
+	void process(RegionGroup group) {
 		RestaurantLicenseService.ScanResult scan = restaurantLicenseService.scanRecentCandidates(group.displayName());
 		if (!scan.complete()) {
-			log.warn("지역 {} 조회가 페이지 상한에 도달해 불완전할 수 있으므로 기준 데이터를 갱신하지 않습니다. requests={}",
+			log.warn("지역 {} 조회의 페이지네이션이 불완전하므로 기준 데이터를 갱신하지 않습니다. requests={}",
 					group.displayName(), scan.requestCount());
 			return;
 		}
-		if (scan.candidates().isEmpty()) {
-			log.warn("지역 {} 조회 결과가 비어 있어 비정상 응답 가능성을 배제할 수 없으므로 기준 데이터를 갱신하지 않습니다.",
-					group.displayName());
-			return;
-		}
-
 		DocumentReference snapshot = snapshotDocument(group.regionKey());
 		DocumentSnapshot snapshotData = await(snapshot.get(), "지역별 감지 기준 정보를 불러오지 못했습니다.");
 		if (!snapshotData.exists() || !Boolean.TRUE.equals(snapshotData.getBoolean("initialized"))) {
@@ -127,7 +190,7 @@ public class RestaurantDiscoveryService {
 		}
 
 		List<RestaurantLicenseCandidate> unseen = findUnseen(snapshot, scan.candidates());
-		Instant detectedAt = Instant.now();
+		Instant detectedAt = clock.instant();
 		for (RestaurantLicenseCandidate candidate : unseen) {
 			List<RegionAssignment> recipients = group.assignments().stream()
 					.filter(assignment -> matchesManagedRegion(assignment.region(), candidate))
@@ -156,7 +219,7 @@ public class RestaurantDiscoveryService {
 			RegionGroup group,
 			RestaurantLicenseService.ScanResult scan
 	) {
-		Instant initializedAt = Instant.now();
+		Instant initializedAt = clock.instant();
 		for (int start = 0; start < scan.candidates().size(); start += WRITE_BATCH_SIZE) {
 			WriteBatch batch = firestore.batch();
 			int end = Math.min(start + WRITE_BATCH_SIZE, scan.candidates().size());
@@ -334,9 +397,9 @@ public class RestaurantDiscoveryService {
 		return data;
 	}
 
-	private boolean acquireLock() {
+	boolean acquireLock() {
 		DocumentReference lock = firestore.collection(LOCK_COLLECTION).document("global");
-		Instant now = Instant.now();
+		Instant now = clock.instant();
 		return await(firestore.runTransaction(transaction -> {
 			DocumentSnapshot snapshot = await(transaction.get(lock), "자동 감지 실행 잠금을 확인하지 못했습니다.");
 			Timestamp expiresAt = snapshot.getTimestamp("expiresAt");
@@ -350,18 +413,48 @@ public class RestaurantDiscoveryService {
 		}), "자동 감지 실행 잠금을 획득하지 못했습니다.");
 	}
 
-	private void releaseLock() {
+	boolean renewLock() {
+		synchronized (leaseMutationMonitor) {
+			return renewLockNow();
+		}
+	}
+
+	private boolean renewLockIfActive(AtomicBoolean active) {
+		synchronized (leaseMutationMonitor) {
+			if (!active.get()) return false;
+			return renewLockNow();
+		}
+	}
+
+	private boolean renewLockNow() {
 		DocumentReference lock = firestore.collection(LOCK_COLLECTION).document("global");
-		try {
-			await(firestore.runTransaction(transaction -> {
-				DocumentSnapshot snapshot = await(transaction.get(lock), "자동 감지 실행 잠금을 확인하지 못했습니다.");
-				if (snapshot.exists() && instanceId.equals(snapshot.getString("holder"))) {
-					transaction.update(lock, "expiresAt", toTimestamp(Instant.now()));
-				}
-				return null;
-			}), "자동 감지 실행 잠금을 해제하지 못했습니다.");
-		} catch (RuntimeException exception) {
-			log.warn("자동 감지 실행 잠금을 즉시 해제하지 못했습니다. 임대 만료 후 자동 복구됩니다.", exception);
+		Instant now = clock.instant();
+		return await(firestore.runTransaction(transaction -> {
+			DocumentSnapshot snapshot = await(transaction.get(lock), "자동 감지 실행 잠금을 갱신하지 못했습니다.");
+			if (!snapshot.exists() || !instanceId.equals(snapshot.getString("holder"))) return false;
+			transaction.set(lock, Map.of(
+					"holder", instanceId,
+					"renewedAt", toTimestamp(now),
+					"expiresAt", toTimestamp(now.plus(lockTtl))
+			), SetOptions.merge());
+			return true;
+		}), "자동 감지 실행 잠금을 갱신하지 못했습니다.");
+	}
+
+	void releaseLock() {
+		synchronized (leaseMutationMonitor) {
+			DocumentReference lock = firestore.collection(LOCK_COLLECTION).document("global");
+			try {
+				await(firestore.runTransaction(transaction -> {
+					DocumentSnapshot snapshot = await(transaction.get(lock), "자동 감지 실행 잠금을 확인하지 못했습니다.");
+					if (snapshot.exists() && instanceId.equals(snapshot.getString("holder"))) {
+						transaction.update(lock, "expiresAt", toTimestamp(clock.instant()));
+					}
+					return null;
+				}), "자동 감지 실행 잠금을 해제하지 못했습니다.");
+			} catch (RuntimeException exception) {
+				log.warn("자동 감지 실행 잠금을 즉시 해제하지 못했습니다. 임대 만료 후 자동 복구됩니다.", exception);
+			}
 		}
 	}
 
@@ -391,9 +484,9 @@ public class RestaurantDiscoveryService {
 		}
 	}
 
-	private record RegionAssignment(String userId, ManagedRegion region) {
+	record RegionAssignment(String userId, ManagedRegion region) {
 	}
 
-	private record RegionGroup(String regionKey, String displayName, List<RegionAssignment> assignments) {
+	record RegionGroup(String regionKey, String displayName, List<RegionAssignment> assignments) {
 	}
 }

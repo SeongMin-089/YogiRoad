@@ -147,14 +147,18 @@ public class RestaurantLicenseService {
 		List<RawRestaurant> result = new ArrayList<>();
 		boolean complete = false;
 		int requestCount = 0;
+		long expectedTotal = -1;
 		for (int pageNo = 1; pageNo <= MAX_PAGES_PER_ADDRESS_FIELD; pageNo++) {
 			RawPage page = fetchPage(region, addressField, startDate, pageNo);
 			requestCount += 1;
+			if (expectedTotal < 0) expectedTotal = page.totalCount();
+			if (page.totalCount() != expectedTotal) break;
 			result.addAll(page.items());
-			if (page.items().isEmpty() || (long) pageNo * PAGE_SIZE >= page.totalCount()) {
+			if (result.size() == expectedTotal) {
 				complete = true;
 				break;
 			}
+			if (result.size() > expectedTotal || page.items().isEmpty() || page.items().size() < PAGE_SIZE) break;
 		}
 		return new PagedRows(result, complete, requestCount);
 	}
@@ -189,22 +193,51 @@ public class RestaurantLicenseService {
 
 	private RawPage parsePage(String responseBody) {
 		try {
-			JsonNode response = objectMapper.readTree(responseBody).path("response");
-			JsonNode header = response.path("header");
-			String resultCode = header.path("resultCode").asText("00");
+			JsonNode root = objectMapper.readTree(responseBody);
+			JsonNode response = root == null ? null : root.get("response");
+			if (response == null || !response.isObject()) throw invalidResponse();
+			JsonNode header = response.get("header");
+			JsonNode resultCodeNode = header == null ? null : header.get("resultCode");
+			if (header == null || !header.isObject() || resultCodeNode == null || !resultCodeNode.isValueNode()) {
+				throw invalidResponse();
+			}
+			String resultCode = resultCodeNode.asText("").trim();
+			if (resultCode.isEmpty()) throw invalidResponse();
 			if (!resultCode.equals("00") && !resultCode.equals("0")) {
 				throw new RestaurantLicenseApiException(
 						"신규 인허가 정보 제공기관이 오류를 반환했습니다. (code=" + safeCode(resultCode) + ")");
 			}
-			JsonNode body = response.path("body");
-			long totalCount = body.path("totalCount").asLong(0);
-			JsonNode items = body.path("items").path("item");
+			JsonNode body = response.get("body");
+			JsonNode totalCountNode = body == null ? null : body.get("totalCount");
+			if (body == null || !body.isObject() || totalCountNode == null) {
+				throw invalidResponse();
+			}
+			long totalCount = parseTotalCount(totalCountNode);
+			if (totalCount < 0) throw invalidResponse();
+			JsonNode itemsContainer = body.get("items");
+			JsonNode items = itemsContainer == null || itemsContainer.isNull() ? null : itemsContainer.get("item");
 			List<RawRestaurant> rows = new ArrayList<>();
-			if (items.isArray()) items.forEach(item -> rows.add(readRow(item)));
-			else if (items.isObject()) rows.add(readRow(items));
+			if (items != null && items.isArray()) items.forEach(item -> rows.add(readRow(item)));
+			else if (items != null && items.isObject()) rows.add(readRow(items));
+			else if (totalCount > 0) throw invalidResponse();
 			return new RawPage(totalCount, rows);
 		} catch (JsonProcessingException exception) {
 			throw new RestaurantLicenseApiException("신규 인허가 정보 응답 형식을 읽을 수 없습니다.", exception);
+		}
+	}
+
+	private RestaurantLicenseApiException invalidResponse() {
+		return new RestaurantLicenseApiException("신규 인허가 정보 응답에 필수 데이터가 없습니다.");
+	}
+
+	private long parseTotalCount(JsonNode value) {
+		if (value.isIntegralNumber() && value.canConvertToLong()) return value.asLong();
+		String text = value.isTextual() ? value.asText("").trim() : "";
+		if (!text.matches("\\d{1,12}")) throw invalidResponse();
+		try {
+			return Long.parseLong(text);
+		} catch (NumberFormatException exception) {
+			throw invalidResponse();
 		}
 	}
 

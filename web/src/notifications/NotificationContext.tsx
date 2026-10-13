@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getUnreadNotificationCount } from '../services/notificationApi';
 
 type NotificationContextValue = {
@@ -14,16 +14,23 @@ const POLL_INTERVAL_MS = 30_000;
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const refreshSequenceRef = useRef(0);
 
   const refreshUnreadCount = useCallback(async () => {
+    const sequence = ++refreshSequenceRef.current;
     try {
-      setUnreadCount(Math.max(0, await getUnreadNotificationCount()));
+      const count = await getUnreadNotificationCount();
+      if (mountedRef.current && sequence === refreshSequenceRef.current) {
+        setUnreadCount(Math.max(0, count));
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && sequence === refreshSequenceRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     let active = true;
     const refresh = async () => {
       if (!active || document.visibilityState !== 'visible') return;
@@ -35,6 +42,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       active = false;
+      mountedRef.current = false;
+      refreshSequenceRef.current += 1;
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };

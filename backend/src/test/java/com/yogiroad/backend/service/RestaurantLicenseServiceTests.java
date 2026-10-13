@@ -1,13 +1,16 @@
 package com.yogiroad.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yogiroad.backend.dto.RestaurantLicenseCandidate;
+import com.yogiroad.backend.exception.RestaurantLicenseApiException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -66,6 +69,62 @@ class RestaurantLicenseServiceTests {
 		assertNull(RestaurantLicenseService.convertCoordinate("1", "1"));
 	}
 
+	@Test
+	void acceptsACompleteZeroResultAsAValidScan() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		server.expect(request -> { }).andRespond(withSuccess(emptyResponse(), MediaType.APPLICATION_JSON));
+		server.expect(request -> { }).andRespond(withSuccess(emptyResponse(), MediaType.APPLICATION_JSON));
+
+		RestaurantLicenseService.ScanResult result = service(builder.build())
+				.scanRecentCandidates("경기도 남양주시");
+
+		assertTrue(result.complete());
+		assertTrue(result.candidates().isEmpty());
+		assertEquals(2, result.requestCount());
+		server.verify();
+	}
+
+	@Test
+	void rejectsMissingResponseMetadataInsteadOfTreatingItAsZero() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		server.expect(request -> { }).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+		assertThrows(RestaurantLicenseApiException.class, () -> service(builder.build())
+				.scanRecentCandidates("경기도 남양주시"));
+		server.verify();
+	}
+
+	@Test
+	void rejectsAnExternalApiErrorResultCode() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		server.expect(request -> { }).andRespond(withSuccess("""
+				{"response":{"header":{"resultCode":"99"},"body":{"totalCount":0}}}
+				""", MediaType.APPLICATION_JSON));
+
+		assertThrows(RestaurantLicenseApiException.class, () -> service(builder.build())
+				.scanRecentCandidates("경기도 남양주시"));
+		server.verify();
+	}
+
+	@Test
+	void reportsIncompleteWhenItemsDoNotReachTheAdvertisedTotal() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		server.expect(request -> { }).andRespond(withSuccess(partialResponse(), MediaType.APPLICATION_JSON));
+		server.expect(request -> { }).andRespond(withSuccess(emptyResponse(), MediaType.APPLICATION_JSON));
+
+		RestaurantLicenseService.ScanResult result = service(builder.build())
+				.scanRecentCandidates("경기도 남양주시");
+
+		assertFalse(result.complete());
+		assertEquals(1, result.candidates().size());
+		assertEquals(2, result.requestCount());
+		server.verify();
+	}
+
 	private RestaurantLicenseService service(RestClient restClient) {
 		return new RestaurantLicenseService(
 				restClient,
@@ -94,6 +153,20 @@ class RestaurantLicenseServiceTests {
 				{"response":{"header":{"resultCode":"00"},"body":{"totalCount":2,"items":{"item":[
 				{"MNG_NO":"NEW-1","BPLC_NM":"새 식당 중복","LCPMT_YMD":"2026-10-11","SALS_STTS_CD":"01","ROAD_NM_ADDR":"경기도 남양주시 진접읍 1"},
 				{"MNG_NO":"NEW-2","BPLC_NM":"지번만 있는 식당","LCPMT_YMD":"2026-10-12","SALS_STTS_CD":"01","SALS_STTS_NM":"영업/정상","BZSTAT_SE_NM":"기타","ROAD_NM_ADDR":"","LOTNO_ADDR":"경기도 남양주시 진접읍 2","CRD_INFO_X":"","CRD_INFO_Y":""}
+				]}}}}
+				""";
+	}
+
+	private String emptyResponse() {
+		return """
+				{"response":{"header":{"resultCode":"00"},"body":{"totalCount":0}}}
+				""";
+	}
+
+	private String partialResponse() {
+		return """
+				{"response":{"header":{"resultCode":"00"},"body":{"totalCount":2,"items":{"item":[
+				{"MNG_NO":"ONE-OF-TWO","BPLC_NM":"일부 식당","LCPMT_YMD":"2026-10-12","SALS_STTS_CD":"01","ROAD_NM_ADDR":"경기도 남양주시 진접읍 1"}
 				]}}}}
 				""";
 	}

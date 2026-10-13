@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { PageHeader } from '../components/PageHeader';
@@ -35,7 +35,7 @@ function mapUrl(notification: RestaurantNotification): string {
 
 export function NotificationsPage() {
   const navigate = useNavigate();
-  const { consumeUnread, refreshUnreadCount, unreadCount } = useNotifications();
+  const { refreshUnreadCount, unreadCount } = useNotifications();
   const [items, setItems] = useState<RestaurantNotification[]>([]);
   const [page, setPage] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -43,33 +43,54 @@ export function NotificationsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadControllerRef = useRef<AbortController | null>(null);
+  const loadSequenceRef = useRef(0);
+  const pendingReadsRef = useRef(new Set<string>());
 
   const load = useCallback(async (nextPage: number, append: boolean) => {
+    const sequence = ++loadSequenceRef.current;
+    loadControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
     append ? setLoadingMore(true) : setLoading(true);
     setError(null);
     try {
-      const result = await getNotifications(nextPage, PAGE_SIZE);
+      const result = await getNotifications(nextPage, PAGE_SIZE, controller.signal);
+      if (sequence !== loadSequenceRef.current) return;
       setItems(current => append ? [...current, ...result.items] : result.items);
       setPage(result.page);
       setHasNext(result.hasNext);
     } catch (requestError) {
+      if (controller.signal.aborted || sequence !== loadSequenceRef.current) return;
       setError(requestError instanceof ApiError ? requestError.message : '알림을 불러오지 못했습니다.');
     } finally {
-      append ? setLoadingMore(false) : setLoading(false);
+      if (sequence === loadSequenceRef.current) {
+        append ? setLoadingMore(false) : setLoading(false);
+      }
     }
   }, []);
 
-  useEffect(() => { void load(0, false); }, [load]);
+  useEffect(() => {
+    void load(0, false);
+    return () => {
+      loadSequenceRef.current += 1;
+      loadControllerRef.current?.abort();
+    };
+  }, [load]);
 
   async function open(notification: RestaurantNotification): Promise<void> {
     if (!notification.isRead) {
+      if (pendingReadsRef.current.has(notification.id)) return;
+      pendingReadsRef.current.add(notification.id);
       try {
         await markNotificationRead(notification.id);
-        consumeUnread();
         setItems(current => current.map(item => item.id === notification.id ? { ...item, isRead: true } : item));
+        await refreshUnreadCount();
       } catch (requestError) {
         setError(requestError instanceof ApiError ? requestError.message : '알림을 읽음 처리하지 못했습니다.');
         return;
+      } finally {
+        pendingReadsRef.current.delete(notification.id);
       }
     }
     navigate(mapUrl(notification));
@@ -82,7 +103,6 @@ export function NotificationsPage() {
     try {
       await markAllNotificationsRead();
       setItems(current => current.map(item => ({ ...item, isRead: true })));
-      consumeUnread(unreadCount);
       await refreshUnreadCount();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : '알림을 모두 읽음 처리하지 못했습니다.');
