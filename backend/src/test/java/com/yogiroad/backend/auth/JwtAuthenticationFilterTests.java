@@ -53,6 +53,30 @@ class JwtAuthenticationFilterTests {
 	}
 
 	@Test
+	void publicStoreProxyRequiresAuthorizationHeader() throws Exception {
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(mock(JwtTokenProvider.class));
+		MockHttpServletRequest request = request(
+				"GET", "/api/sales-targets/public-stores?latitude=37.7&longitude=127.2");
+		request.setServletPath("/api/sales-targets/public-stores");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, mock(FilterChain.class));
+
+		assertEquals(401, response.getStatus());
+	}
+
+	@Test
+	void userProfileRequiresAuthorizationHeader() throws Exception {
+		JwtAuthenticationFilter filter = new JwtAuthenticationFilter(mock(JwtTokenProvider.class));
+		MockHttpServletRequest request = request("GET", "/api/users/me/profile");
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter.doFilter(request, response, mock(FilterChain.class));
+
+		assertEquals(401, response.getStatus());
+	}
+
+	@Test
 	void invalidJwtReturnsUnauthorized() throws Exception {
 		JwtTokenProvider provider = mock(JwtTokenProvider.class);
 		when(provider.verify("invalid")).thenThrow(new MalformedJwtException("invalid"));

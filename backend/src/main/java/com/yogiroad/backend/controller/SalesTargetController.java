@@ -4,7 +4,9 @@ import com.yogiroad.backend.auth.JwtAuthenticationFilter;
 import com.yogiroad.backend.dto.SalesTargetCreateRequest;
 import com.yogiroad.backend.dto.SalesTargetUpdateRequest;
 import com.yogiroad.backend.dto.RestaurantLicenseCandidate;
+import com.yogiroad.backend.dto.PublicStoreCandidate;
 import com.yogiroad.backend.model.SalesTarget;
+import com.yogiroad.backend.service.PublicStoreService;
 import com.yogiroad.backend.service.SalesTargetService;
 import com.yogiroad.backend.service.RestaurantLicenseService;
 import jakarta.validation.Valid;
@@ -28,13 +30,27 @@ public class SalesTargetController {
 
 	private final SalesTargetService salesTargetService;
 	private final RestaurantLicenseService restaurantLicenseService;
+	private final PublicStoreService publicStoreService;
 
 	public SalesTargetController(
 			SalesTargetService salesTargetService,
-			RestaurantLicenseService restaurantLicenseService
+			RestaurantLicenseService restaurantLicenseService,
+			PublicStoreService publicStoreService
 	) {
 		this.salesTargetService = salesTargetService;
 		this.restaurantLicenseService = restaurantLicenseService;
+		this.publicStoreService = publicStoreService;
+	}
+
+	@GetMapping("/public-stores")
+	public List<PublicStoreCandidate> findPublicStores(
+			@RequestParam double latitude,
+			@RequestParam double longitude,
+			@RequestParam(defaultValue = "1000") int radius,
+			@RequestParam(defaultValue = "1") int pageNo,
+			@RequestParam(defaultValue = "100") int numOfRows
+	) {
+		return publicStoreService.findRestaurants(latitude, longitude, radius, pageNo, numOfRows);
 	}
 
 	@GetMapping("/license-candidates")

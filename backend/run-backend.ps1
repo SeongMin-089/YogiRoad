@@ -31,13 +31,44 @@ Get-Content $envFile -Encoding UTF8 | ForEach-Object {
     }
 }
 
+# 웹 지도용 상가정보 API 키가 아직 backend/.env로 이전되지 않았다면
+# 기존 Expo 앱이 사용하던 루트 .env 값을 현재 백엔드 프로세스에만 승계합니다.
+$publicStoreKey = [Environment]::GetEnvironmentVariable("PUBLIC_STORE_API_KEY", "Process")
+
+if ([string]::IsNullOrWhiteSpace($publicStoreKey)) {
+    $legacyEnvFile = Join-Path (Split-Path -Parent $PSScriptRoot) ".env"
+
+    if (Test-Path $legacyEnvFile) {
+        Get-Content $legacyEnvFile -Encoding UTF8 | ForEach-Object {
+            $line = $_.Trim()
+
+            if ($line -and -not $line.StartsWith("#")) {
+                $parts = $line -split "=", 2
+
+                if ($parts.Count -eq 2 -and $parts[0].Trim() -eq "EXPO_PUBLIC_PUBLIC_DATA_KEY") {
+                    $legacyKey = $parts[1].Trim().Trim('"').Trim("'")
+
+                    if (-not [string]::IsNullOrWhiteSpace($legacyKey)) {
+                        [Environment]::SetEnvironmentVariable(
+                            "PUBLIC_STORE_API_KEY",
+                            $legacyKey,
+                            "Process"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 # 필수 환경변수 확인
 $required = @(
     "KAKAO_REST_API_KEY",
     "KAKAO_REDIRECT_URI",
     "YOGIROAD_JWT_SECRET",
     "GOOGLE_APPLICATION_CREDENTIALS",
-    "RESTAURANT_LICENSE_API_KEY"
+    "RESTAURANT_LICENSE_API_KEY",
+    "PUBLIC_STORE_API_KEY"
 )
 
 foreach ($name in $required) {

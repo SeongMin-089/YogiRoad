@@ -24,3 +24,12 @@ cd backend
 서버가 실행되면 `GET http://localhost:8080/api/health`로 상태를 확인할 수 있습니다.
 
 카카오 로그인/JWT 환경변수와 Expo Go 실기기 설정은 [`../docs/kakao-login.md`](../docs/kakao-login.md)를 참고하세요.
+
+웹 지도에서 사용하는 소상공인 상가정보 API 키는 `backend/.env`의
+`PUBLIC_STORE_API_KEY`에 설정합니다. 서버가 공공데이터 API를 대신 호출하므로 이 키는
+Vite의 `VITE_` 환경변수나 브라우저 번들에 포함하지 않습니다.
+
+기존 Expo 프로젝트의 루트 `.env`에만 `EXPO_PUBLIC_PUBLIC_DATA_KEY`가 설정되어 있다면
+`run-backend.ps1`이 이전 호환을 위해 해당 값을 현재 백엔드 프로세스의
+`PUBLIC_STORE_API_KEY`로 승계합니다. 배포 환경에서는 `PUBLIC_STORE_API_KEY`를 직접
+설정해야 합니다.
