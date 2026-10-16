@@ -1,36 +1,19 @@
 .field {
   display: flex;
-  min-height: 54px;
+  min-height: 3.35rem;
   align-items: center;
-  gap: 10px;
-  padding-left: 14px;
-  padding-right: 4px;
+  gap: 0.6rem;
+  padding: 0 0.3rem 0 0.9rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-ui), box-shadow var(--transition-ui);
 
-  > svg { width: 20px; flex: 0 0 auto; color: var(--color-text-muted); }
-  input {
-    min-width: 0;
-    min-height: 52px;
-    flex: 1;
-    padding: 12px 0;
-    color: var(--color-text);
-    background: transparent;
-    border: 0;
-    outline: 0;
-    font-size: 14px;
-  }
-  input::placeholder { color: var(--color-text-muted); }
-  button {
-    display: grid;
-    min-width: 44px;
-    min-height: 44px;
-    place-items: center;
-    color: var(--color-text-muted);
-    background: transparent;
-    border: 0;
-    cursor: pointer;
-  }
-  button svg { width: 20px; }
+  &:focus-within { border-color: #b6a3f2; box-shadow: 0 0 0 3px rgb(108 69 232 / 10%); }
+  > svg { width: 1.12rem; flex: 0 0 auto; color: var(--color-primary); }
+  input { min-width: 0; min-height: 3.2rem; flex: 1; padding: 0.7rem 0; color: var(--color-text); background: transparent; border: 0; outline: 0; font-size: 0.82rem; }
+  input::placeholder { color: var(--color-text-subtle); }
+  button { display: grid; min-width: 2.75rem; min-height: 2.75rem; place-items: center; color: var(--color-text-muted); background: transparent; border: 0; border-radius: 0.75rem; cursor: pointer; }
+  button:hover { color: var(--color-primary-dark); background: var(--color-primary-soft); }
+  button svg { width: 1.15rem; }
 }

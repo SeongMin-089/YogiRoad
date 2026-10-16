@@ -8,7 +8,7 @@ import styles from './DashboardPage.module.scss';
 
 const periodLabels: Record<DashboardPeriod, string> = { WEEK: '이번 주', MONTH: '이번 달', ALL: '전체' };
 const statusColors: Record<SalesStatus, string> = {
-  미방문: '#9aa3b2', 상담중: '#5b8def', 재방문: '#f4a340', 계약완료: '#31a66a', 거절: '#d9686c',
+  미방문: '#8290a5', 상담중: '#6550df', 재방문: '#ed872b', 계약완료: '#15996b', 거절: '#dc526c',
 };
 
 function formatDate(value: string): string {

@@ -91,7 +91,7 @@ export function SalesPage() {
             <span>{targets.length ? '검색어나 상태 필터를 변경해 보세요.' : '지도에서 음식점을 찾아 영업 대상으로 등록해 보세요.'}</span></div>
             : <div className={styles.list}>{filtered.map(target => <button type="button" className={styles.card}
               key={target.storeId} onClick={() => setSelected(target)}>
-              <div className={styles.cardTop}><h2>{target.storeName}</h2><span className={styles.status}>{target.status}</span></div>
+              <div className={styles.cardTop}><h2>{target.storeName}</h2><span className={styles.status} data-status={target.status}>{target.status}</span></div>
               <p>{target.category || '업종 정보 없음'} · {target.address || '주소 정보 없음'}</p>
               <div className={styles.cardMeta}><span>등록 {formatDate(target.registeredAt)}</span><span>{target.memo ? '메모 있음' : '메모 없음'}</span></div>
             </button>)}</div>}

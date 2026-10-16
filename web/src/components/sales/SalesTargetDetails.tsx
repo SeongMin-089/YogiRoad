@@ -164,6 +164,7 @@ export function SalesTargetDetails({ target, onClose, onUpdated, onDeleted }: Pr
             <div className={styles.chips}>
               {SALES_STATUSES.map(option => <button
                 type="button" key={option} disabled={saving}
+                data-status={option}
                 className={status === option ? styles.selectedChip : ''}
                 onClick={() => setStatus(option)}
               >{option}</button>)}

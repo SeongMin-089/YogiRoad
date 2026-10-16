@@ -84,12 +84,12 @@ function loadKakaoSdk(appKey: string): Promise<KakaoMapsApi> {
 }
 
 function markerColor(status?: SalesStatus): string {
-  if (status === '계약완료') return '#16A34A';
-  if (status === '상담중') return '#F59E0B';
-  if (status === '재방문') return '#8B5CF6';
-  if (status === '미방문') return '#64748B';
-  if (status === '거절') return '#475569';
-  return '#FF5A5F';
+  if (status === '계약완료') return '#15996B';
+  if (status === '상담중') return '#6550DF';
+  if (status === '재방문') return '#ED872B';
+  if (status === '미방문') return '#8290A5';
+  if (status === '거절') return '#DC526C';
+  return '#6C45E8';
 }
 
 function markerImage(
@@ -103,12 +103,12 @@ function markerImage(
   if (cached) return cached;
 
   if (kind === 'licenseCandidate' || kind === 'highlighted') {
-    const fill = kind === 'highlighted' ? '#FF5A5F' : '#16A34A';
+    const fill = kind === 'highlighted' ? '#6C45E8' : '#15996B';
     const label = kind === 'highlighted' ? '알림' : 'NEW';
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="46" height="52" viewBox="0 0 46 52">'
       + `<path d="M23 8C14.2 8 7 15.2 7 24c0 11.7 16 27 16 27s16-15.3 16-27C39 15.2 31.8 8 23 8z" fill="${fill}" stroke="#FFFFFF" stroke-width="2"/>`
       + '<circle cx="23" cy="24" r="5" fill="#FFFFFF"/>'
-      + `<rect x="10" y="1" width="26" height="14" rx="7" fill="${kind === 'highlighted' ? '#B4232A' : '#065F46'}" stroke="#FFFFFF" stroke-width="1.5"/>`
+      + `<rect x="10" y="1" width="26" height="14" rx="7" fill="${kind === 'highlighted' ? '#4322AD' : '#087A53'}" stroke="#FFFFFF" stroke-width="1.5"/>`
       + `<text x="23" y="11" text-anchor="middle" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="#FFFFFF">${label}</text>`
       + '</svg>';
     const image = new maps.MarkerImage(

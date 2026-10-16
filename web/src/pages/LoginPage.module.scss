@@ -1,5 +1,4 @@
 .page { min-height: 100dvh; background: #fff; }
-
 .intro { display: none; }
 
 .loginPanel {
@@ -8,7 +7,8 @@
   align-content: center;
   padding: 1.5rem;
   background:
-    radial-gradient(circle at 100% 0%, rgb(255 90 95 / 12%), transparent 34%),
+    radial-gradient(circle at 92% 5%, rgb(108 69 232 / 15%), transparent 32%),
+    radial-gradient(circle at 5% 96%, rgb(139 106 245 / 8%), transparent 28%),
     #fff;
 }
 
@@ -18,66 +18,71 @@
   width: min(100%, 27rem);
   margin: 0 auto;
 
-  h2 { margin: 0.75rem 0 0.8rem; font-size: clamp(1.8rem, 7vw, 2.4rem); letter-spacing: -0.045em; }
+  h2 { margin: 0.8rem 0; font-size: clamp(1.9rem, 7vw, 2.5rem); line-height: 1.18; letter-spacing: -0.052em; }
   > p { margin: 0 0 2rem; color: var(--color-text-muted); line-height: 1.75; }
   small { display: block; margin-top: 1.25rem; color: var(--color-text-subtle); font-size: 0.74rem; line-height: 1.65; text-align: center; }
 }
 
-.step { color: var(--color-primary-dark); font-size: 0.7rem; font-weight: 850; letter-spacing: 0.12em; }
+.step { color: var(--color-primary-dark); font-size: 0.7rem; font-weight: 850; letter-spacing: 0.13em; }
 
 .kakaoButton {
   display: grid;
   width: 100%;
-  min-height: 3.6rem;
+  min-height: 3.75rem;
   grid-template-columns: 2rem 1fr 2rem;
   align-items: center;
   padding: 0.8rem 1rem;
   color: #191919;
   background: #fee500;
   border: 0;
-  border-radius: 0.9rem;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0.65rem 1.5rem rgb(49 42 0 / 10%);
   cursor: pointer;
   font: inherit;
   font-weight: 800;
-  transition: filter 160ms ease, transform 160ms ease;
+  transition: filter var(--transition-ui), transform var(--transition-ui), box-shadow var(--transition-ui);
 
   strong { font-size: 1.15rem; }
   span { grid-column: 2; }
-  &:hover:not(:disabled) { filter: brightness(0.97); transform: translateY(-1px); }
+  &:hover:not(:disabled) { filter: brightness(0.975); box-shadow: 0 0.8rem 1.8rem rgb(49 42 0 / 14%); transform: translateY(-1px); }
   &:disabled { cursor: wait; opacity: 0.65; }
 }
 
-.error { margin: 0.9rem 0 0 !important; color: var(--color-error) !important; font-size: 0.85rem; text-align: center; }
+.error { margin: 0.9rem 0 0 !important; padding: 0.8rem; color: var(--color-error) !important; background: #fff1f4; border-radius: var(--radius-sm); font-size: 0.84rem; text-align: center; }
 
 @media (min-width: 860px) {
-  .page { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(26rem, 0.9fr); }
+  .page { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(27rem, 0.88fr); }
 
   .intro {
+    position: relative;
     display: flex;
     min-height: 100dvh;
     flex-direction: column;
     justify-content: space-between;
-    padding: clamp(2rem, 5vw, 4.5rem);
-    color: var(--color-text);
-    background:
-      radial-gradient(circle at 14% 84%, rgb(255 90 95 / 18%), transparent 28%),
-      linear-gradient(145deg, #fff8f7 0%, #f6f7f9 100%);
+    overflow: hidden;
+    padding: clamp(2.2rem, 5vw, 4.75rem);
+    color: #fff;
+    background: linear-gradient(145deg, #311773 0%, #5d37ce 54%, #8968ee 100%);
 
-    h1 { margin: 1rem 0; font-size: clamp(2.8rem, 5vw, 4.7rem); line-height: 1.08; letter-spacing: -0.065em; }
-    p { max-width: 34rem; color: var(--color-text-muted); font-size: 1.03rem; line-height: 1.8; }
+    &::after { position: absolute; right: -10%; bottom: -20%; width: 30rem; height: 30rem; background: rgb(255 255 255 / 8%); border-radius: 50%; content: ''; }
+    h1 { position: relative; margin: 1.1rem 0; font-size: clamp(3rem, 5vw, 4.8rem); line-height: 1.07; letter-spacing: -0.065em; }
+    p { position: relative; max-width: 34rem; color: rgb(255 255 255 / 76%); font-size: 1.02rem; line-height: 1.8; }
   }
 
-  .eyebrow { color: var(--color-primary-dark); font-size: 0.76rem; font-weight: 850; letter-spacing: 0.08em; text-transform: uppercase; }
+  .intro > :first-child { position: relative; z-index: 1; color: #fff; }
+  .eyebrow { color: #d9ceff; font-size: 0.75rem; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
 
   .signal {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    color: var(--color-text-muted);
+    gap: 0.8rem;
+    color: rgb(255 255 255 / 72%);
     font-size: 0.78rem;
     font-weight: 750;
 
-    i { width: 2.5rem; height: 1px; background: var(--color-border-strong); }
+    i { width: 2.75rem; height: 1px; background: rgb(255 255 255 / 30%); }
   }
 
   .loginPanel { padding: 3rem; }

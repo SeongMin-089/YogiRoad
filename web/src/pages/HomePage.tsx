@@ -68,6 +68,7 @@ export function HomePage() {
         <Link to="/map"><span><Icon name="map" /></span>음식점 찾기</Link>
         <Link to="/sales"><span><Icon name="briefcase" /></span>영업관리</Link>
         <Link to="/dashboard"><span><Icon name="chart" /></span>실적 보기</Link>
+        <Link to="/notifications"><span><Icon name="bell" /></span>신규 음식점</Link>
       </nav>
 
       {error && <p className={styles.error}>{error} <button className={styles.refresh} type="button" onClick={() => { void load(); }}>다시 시도</button></p>}

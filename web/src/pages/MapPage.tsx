@@ -485,7 +485,11 @@ export function MapPage() {
 
   return (
     <div className={styles.page}>
-      <h1>지도</h1>
+      <header className={styles.mapHeader}>
+        <span>Field Map</span>
+        <h1>음식점 찾기</h1>
+        <p>지역을 검색하고 지도에서 바로 영업 대상을 확인하세요.</p>
+      </header>
       <section className={styles.section}>
         <label className={styles.sectionLabel} htmlFor="region-search">지역 이동</label>
         <form className={styles.regionSearch} onSubmit={submitRegionSearch}>

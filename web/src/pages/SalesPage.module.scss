@@ -1,25 +1,63 @@
-.toolbar { display: grid; gap: 0.8rem; margin-top: 1.25rem; }
-.search { display: flex; align-items: center; gap: 0.65rem; padding: 0 0.9rem; background: #fff; border: 1px solid var(--color-border); border-radius: 0.9rem; }
-.search svg { width: 1.15rem; color: var(--color-text-muted); }
-.search input { width: 100%; min-height: 3.25rem; background: transparent; border: 0; outline: 0; }
-.filters { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.15rem 0 0.35rem; scrollbar-width: none; }
+.toolbar { display: grid; gap: 0.85rem; margin-top: 0.2rem; }
+.search {
+  display: flex;
+  min-height: 3.4rem;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0 1rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0.4rem 1.2rem rgb(35 31 56 / 4%);
+  transition: border-color var(--transition-ui), box-shadow var(--transition-ui);
+
+  &:focus-within { border-color: #bbaaf3; box-shadow: 0 0 0 3px rgb(108 69 232 / 10%); }
+  svg { width: 1.15rem; flex: 0 0 auto; color: var(--color-primary); }
+  input { width: 100%; min-height: 3.25rem; color: var(--color-text); background: transparent; border: 0; outline: 0; }
+  input::placeholder { color: var(--color-text-subtle); }
+}
+
+.filters { display: flex; gap: 0.48rem; overflow-x: auto; padding: 0.1rem 0 0.35rem; scrollbar-width: none; }
 .filters::-webkit-scrollbar { display: none; }
-.filters button { flex: 0 0 auto; min-height: 2.65rem; padding: 0.55rem 0.8rem; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: 0.75rem; cursor: pointer; font-size: 0.78rem; font-weight: 750; }
-.filters .active { color: var(--color-primary-dark); background: var(--color-primary-soft); border-color: var(--color-primary); }
-.summary { margin: 0.85rem 0; color: var(--color-text-muted); font-size: 0.8rem; }
-.list { display: grid; gap: 0.75rem; }
-.card { display: grid; width: 100%; gap: 0.7rem; padding: 1rem; text-align: left; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); cursor: pointer; }
-.card:hover { border-color: #ffc4c2; }
-.cardTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
-.card h2 { overflow: hidden; margin: 0; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
-.status { flex: 0 0 auto; padding: 0.3rem 0.55rem; color: var(--color-primary-dark); background: var(--color-primary-soft); border-radius: 0.45rem; font-size: 0.7rem; font-weight: 800; }
-.card p { margin: 0; color: var(--color-text-muted); font-size: 0.8rem; line-height: 1.5; }
-.cardMeta { display: flex; justify-content: space-between; gap: 0.75rem; color: var(--color-text-subtle); font-size: 0.72rem; }
-.state { display: grid; min-height: 16rem; place-content: center; justify-items: center; gap: 0.75rem; padding: 2rem; text-align: center; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); }
+.filters button { flex: 0 0 auto; min-height: 2.75rem; padding: 0.55rem 0.85rem; color: var(--color-text-muted); background: #fff; border: 1px solid var(--color-border); border-radius: 999px; cursor: pointer; font-size: 0.77rem; font-weight: 750; transition: color var(--transition-ui), background var(--transition-ui), border-color var(--transition-ui); }
+.filters .active { color: #fff; background: var(--color-primary); border-color: var(--color-primary); box-shadow: 0 0.45rem 1rem rgb(108 69 232 / 18%); }
+.summary { margin: 0.75rem 0 0.9rem; color: var(--color-text-muted); font-size: 0.78rem; }
+.list { display: grid; gap: 0.72rem; }
+.card {
+  display: grid;
+  width: 100%;
+  gap: 0.72rem;
+  padding: 1.05rem;
+  color: var(--color-text);
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: border-color var(--transition-ui), box-shadow var(--transition-ui), transform var(--transition-ui);
+
+  &:hover { border-color: #d8cdfd; box-shadow: 0 0.85rem 2.2rem rgb(35 31 56 / 9%); transform: translateY(-2px); }
+}
+.cardTop { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.card h2 { overflow: hidden; margin: 0; font-size: 1rem; letter-spacing: -0.025em; text-overflow: ellipsis; white-space: nowrap; }
+.status { flex: 0 0 auto; padding: 0.32rem 0.58rem; color: #526073; background: #eef1f5; border-radius: 999px; font-size: 0.69rem; font-weight: 850; }
+.status[data-status='상담중'] { color: #5235bf; background: #eeeaff; }
+.status[data-status='재방문'] { color: #a55412; background: #fff0df; }
+.status[data-status='계약완료'] { color: #087a53; background: #e4f7ef; }
+.status[data-status='거절'] { color: #b83a55; background: #ffe9ee; }
+.card p { margin: 0; color: var(--color-text-muted); font-size: 0.8rem; line-height: 1.55; }
+.cardMeta { display: flex; justify-content: space-between; gap: 0.75rem; padding-top: 0.68rem; color: var(--color-text-subtle); border-top: 1px solid var(--color-border); font-size: 0.71rem; }
+.state { display: grid; min-height: 16rem; place-content: center; justify-items: center; gap: 0.75rem; padding: 2rem; color: var(--color-text-muted); text-align: center; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius-xl); }
 .state strong { color: var(--color-text); }
-.retry { min-height: 2.7rem; padding: 0.6rem 1rem; color: #fff; background: var(--color-primary); border: 0; border-radius: 0.75rem; cursor: pointer; font-weight: 750; }
+.retry { min-height: 2.8rem; padding: 0.65rem 1.05rem; color: #fff; background: var(--color-primary); border: 0; border-radius: var(--radius-sm); cursor: pointer; font-weight: 800; }
 
 @media (min-width: 720px) {
-  .toolbar { grid-template-columns: minmax(16rem, 1fr) auto; align-items: center; }
+  .toolbar { grid-template-columns: minmax(18rem, 1fr) auto; align-items: center; }
   .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .card { padding: 1.15rem; }
+}
+
+@media (min-width: 1200px) {
+  .list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
